@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: the-protocol-truth-or-dare
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 3000

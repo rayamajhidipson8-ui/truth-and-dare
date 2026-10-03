@@ -1,0 +1,2536 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Protocol — Real-Time 2-Player Truth or Dare</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti for celebratory visual FX -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Phosphor Icons for crisp vector iconography -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              cyan: '#06b6d4',
+              crimson: '#f43f5e',
+              purple: '#a855f7',
+              dark: '#07080d',
+              surface: '#111420',
+              border: '#1f2438'
+            }
+          },
+          animation: {
+            'pulse-glow': 'pulseGlow 3s infinite',
+            'float': 'float 4s ease-in-out infinite',
+            'spin-slow': 'spin 14s linear infinite',
+            'beacon': 'beacon 1.5s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+          },
+          keyframes: {
+            pulseGlow: {
+              '0%, 100%': { opacity: '0.35', transform: 'scale(1)' },
+              '50%': { opacity: '0.75', transform: 'scale(1.06)' }
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-8px)' }
+            },
+            beacon: {
+              '0%': { transform: 'scale(0.95)', opacity: '0.8' },
+              '70%': { transform: 'scale(1.6)', opacity: '0' },
+              '100%': { transform: 'scale(0.95)', opacity: '0' }
+            },
+            shake: {
+              '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+              '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+              '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+              '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #07080d;
+      color: #f1f5f9;
+      overflow-x: hidden;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090a0f;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #06b6d4;
+    }
+
+    .glass-card {
+      background: rgba(17, 20, 32, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card-hover {
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      box-shadow: 0 10px 30px -10px rgba(6, 182, 212, 0.25);
+      transform: translateY(-3px);
+    }
+
+    /* 3D Flip Card Effect */
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+    .transform-style-3d {
+      transform-style: preserve-3d;
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+
+    .text-gradient-cyan {
+      background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 50%, #3b82f6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .text-gradient-crimson {
+      background: linear-gradient(135deg, #fb7185 0%, #f43f5e 50%, #e11d48 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .wheel-pointer::before {
+      content: '';
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 14px solid transparent;
+      border-right: 14px solid transparent;
+      border-top: 20px solid #f43f5e;
+      filter: drop-shadow(0 4px 10px rgba(244, 63, 94, 0.8));
+      z-index: 30;
+    }
+
+    /* Floating emoji animation */
+    .floating-reaction {
+      position: fixed;
+      pointer-events: none;
+      font-size: 2.5rem;
+      z-index: 9999;
+      animation: floatUpAndFade 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes floatUpAndFade {
+      0% {
+        opacity: 0;
+        transform: translateY(20px) scale(0.5);
+      }
+      20% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1.2);
+      }
+      80% {
+        opacity: 0.9;
+        transform: translateY(-160px) scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-220px) scale(0.8);
+      }
+    }
+  </style>
+</head>
+<body class="relative min-h-screen font-sans antialiased text-slate-100">
+
+  <!-- Ambient Dynamic Lighting Orbs -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div id="orb-1" class="absolute -top-32 -left-32 w-96 h-96 bg-cyan-500/15 rounded-full blur-[130px] animate-pulse-glow"></div>
+    <div id="orb-2" class="absolute top-1/2 -right-32 w-96 h-96 bg-rose-500/15 rounded-full blur-[140px] animate-pulse-glow" style="animation-delay: 1.2s"></div>
+    <div id="orb-3" class="absolute -bottom-32 left-1/3 w-96 h-96 bg-purple-500/15 rounded-full blur-[130px] animate-pulse-glow" style="animation-delay: 2.1s"></div>
+  </div>
+
+  <!-- Realtime Network HUD & Top Bar -->
+  <header class="fixed top-0 left-0 right-0 z-40 px-4 py-3 bg-[#07080d]/80 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between">
+    <!-- Brand & Connection Status -->
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-rose-500 flex items-center justify-center font-black text-white text-xs shadow-lg shadow-cyan-500/20">
+        T&D
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-black tracking-wider text-slate-200 uppercase">THE PROTOCOL</span>
+          <span id="networkBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono font-bold text-slate-400">
+            <span id="networkDot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="networkText">CONNECTING...</span>
+          </span>
+        </div>
+        <div id="roomStatusBar" class="text-[11px] font-mono text-slate-400 hidden">
+          ROOM: <span id="currentRoomCodeLabel" class="text-cyan-400 font-bold tracking-widest">----</span>
+          <span class="mx-1 text-slate-600">•</span>
+          <span id="playerRoleBadge" class="text-purple-400 font-bold">HOST</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Controls: Quick Reactions, Internet Guide & Audio -->
+    <div class="flex items-center gap-2">
+      <!-- Game Introduction Button -->
+      <button id="btnHeaderIntro" onclick="showIntroductionScreen('guide')" class="px-3 py-1.5 glass-card rounded-full text-xs font-mono text-cyan-300 hover:text-white hover:border-cyan-400/50 transition flex items-center gap-1.5 shadow-md">
+        <i class="ph-bold ph-book-open text-cyan-400"></i>
+        <span class="hidden sm:inline">GAME INTRO</span>
+      </button>
+
+      <!-- Play Over Internet Guide Button -->
+      <button onclick="openInternetModal()" class="px-3 py-1.5 glass-card rounded-full text-xs font-mono text-emerald-400 hover:text-emerald-300 hover:border-emerald-500/50 transition flex items-center gap-1.5 shadow-md">
+        <i class="ph-bold ph-globe text-emerald-400"></i>
+        <span class="hidden sm:inline">PLAY ONLINE</span>
+      </button>
+
+      <!-- Quick Reactions Bar (when in room) -->
+      <div id="reactionBar" class="hidden sm:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-2 py-1">
+        <button onclick="sendReaction('🔥')" class="hover:scale-125 active:scale-95 transition text-base px-1" title="Fire">🔥</button>
+        <button onclick="sendReaction('💀')" class="hover:scale-125 active:scale-95 transition text-base px-1" title="Dead">💀</button>
+        <button onclick="sendReaction('😱')" class="hover:scale-125 active:scale-95 transition text-base px-1" title="Shocked">😱</button>
+        <button onclick="sendReaction('😂')" class="hover:scale-125 active:scale-95 transition text-base px-1" title="Laugh">😂</button>
+        <button onclick="sendReaction('👑')" class="hover:scale-125 active:scale-95 transition text-base px-1" title="Crown">👑</button>
+      </div>
+
+      <!-- Copy Room Link Button (when in room) -->
+      <button id="btnHeaderCopyLink" onclick="copyInviteLink()" class="hidden px-3 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900 text-xs font-mono font-bold items-center gap-1.5 transition shadow-sm">
+        <i class="ph-bold ph-share-network"></i>
+        <span class="hidden md:inline">COPY LINK</span>
+      </button>
+
+      <!-- Audio Toggle Button -->
+      <button id="soundToggle" onclick="toggleAudio()" class="px-3 py-1.5 glass-card rounded-full text-xs font-mono text-slate-300 hover:text-cyan-300 hover:border-cyan-500/40 transition flex items-center gap-1.5 shadow-md">
+        <i id="soundIcon" class="ph-bold ph-speaker-high text-cyan-400"></i>
+        <span id="soundLabel" class="hidden md:inline">FX: ON</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MULTIPLAYER LOBBY SCREEN (Hero & Room Matchmaking) -->
+  <section id="lobbyScreen" class="min-h-screen pt-24 pb-16 px-4 sm:px-6 flex flex-col justify-center items-center relative z-10 transition-opacity duration-500">
+    <div class="w-full max-w-4xl flex flex-col items-center text-center">
+      
+      <!-- Top Badge -->
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-xs font-mono mb-6 tracking-widest uppercase animate-float shadow-[0_0_25px_rgba(6,182,212,0.25)]">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+        </span>
+        LIVE 2-PLAYER PROTOCOL // REAL-TIME MULTIPLAYER
+      </div>
+
+      <!-- Main Headline -->
+      <h1 class="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight max-w-3xl leading-[1.08] mb-4">
+        Synchronized <br>
+        <span class="text-gradient-cyan underline decoration-cyan-500/30 underline-offset-8">Truth or Dare.</span>
+      </h1>
+      
+      <p class="text-slate-400 text-sm sm:text-lg max-w-xl font-light leading-relaxed mb-6">
+        Two players. One shared roulette wheel. Instant custom directives and synchronized interrogation. Create a room or paste a 4-letter link to connect.
+      </p>
+
+      <!-- Discover How It Works CTA -->
+      <div class="mb-8">
+        <button onclick="showIntroductionScreen('guide')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-900/90 border border-slate-700/80 hover:border-cyan-400/60 text-slate-300 hover:text-white text-xs font-mono transition shadow-lg group active:scale-95">
+          <i class="ph-bold ph-sparkle text-cyan-400 group-hover:scale-125 transition-transform"></i>
+          <span>New here? Explore Game Introduction, Rules & Live Vault ➔</span>
+        </button>
+      </div>
+
+      <!-- PLAYER 2 INVITATION CARD (Displayed automatically when user opens ?room=ABCD link) -->
+      <div id="roomInvitationCard" class="hidden w-full max-w-md glass-card rounded-3xl p-8 border-2 border-rose-500/60 shadow-[0_0_50px_rgba(244,63,94,0.35)] text-left mb-8 animate-float">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-950 text-rose-300 text-xs font-mono mb-3">
+          <i class="ph-bold ph-ticket"></i> YOU HAVE BEEN INVITED!
+        </div>
+        <h3 class="text-2xl font-black text-white mb-1">
+          Join Room <span id="inviteRoomCodeText" class="text-rose-400 font-mono tracking-widest font-black">ABCD</span>
+        </h3>
+        <p id="inviteHostNotice" class="text-slate-300 text-xs mb-6">
+          Host is waiting in the arena. Choose your name to enter:
+        </p>
+
+        <label class="block text-xs font-mono uppercase text-slate-400 mb-2">
+          <i class="ph-bold ph-user-circle mr-1 text-rose-400"></i> Your Player Name:
+        </label>
+        <div class="flex items-center gap-2 mb-6">
+          <input id="invitePlayerNameInput" type="text" maxlength="16" value="Her" placeholder="Enter your name..." class="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-rose-400 transition" />
+          <button onclick="randomizeInviteName()" class="px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition" title="Randomize name">
+            <i class="ph-bold ph-dice-three text-base"></i>
+          </button>
+        </div>
+
+        <button id="btnAcceptInvite" onclick="handleAcceptInvite()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 text-white font-extrabold text-sm shadow-[0_0_30px_rgba(244,63,94,0.4)] hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-2">
+          <i class="ph-bold ph-sign-in text-lg"></i>
+          <span>ENTER THE ARENA</span>
+        </button>
+      </div>
+
+      <!-- User Profile Card: Name Selection (For Host or Regular Join) -->
+      <div id="defaultNameCard" class="w-full max-w-md glass-card rounded-2xl p-4 mb-8 border-slate-800 text-left">
+        <label class="block text-xs font-mono uppercase text-slate-400 mb-2">
+          <i class="ph-bold ph-user-circle mr-1 text-cyan-400"></i> Your Player Name:
+        </label>
+        <div class="flex items-center gap-2">
+          <input id="playerNameInput" type="text" maxlength="16" value="Dipson" placeholder="Enter your name..." class="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-400 transition" />
+          <button onclick="randomizeName()" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition" title="Randomize name">
+            <i class="ph-bold ph-dice-three text-base"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Matchmaking Options Grid (Create Room vs Join Room) -->
+      <div id="roomActionsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl mb-10">
+        
+        <!-- CARD 1: CREATE ROOM -->
+        <div class="glass-card glass-card-hover p-8 rounded-3xl border-cyan-500/30 text-left relative overflow-hidden flex flex-col justify-between group">
+          <div class="absolute -right-10 -bottom-10 w-36 h-36 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none"></div>
+          <div>
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl mb-5 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-sparkle"></i>
+            </div>
+            <h3 class="text-xl font-black text-white mb-2">Host New Room</h3>
+            <p class="text-slate-400 text-xs leading-relaxed mb-6">
+              Generate a unique 4-letter room code with a shareable URL. You will hold the Host seat.
+            </p>
+          </div>
+          <button id="btnCreateRoom" onclick="handleCreateRoom()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-extrabold text-sm shadow-[0_0_30px_rgba(6,182,212,0.35)] hover:shadow-[0_0_40px_rgba(6,182,212,0.6)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <i class="ph-bold ph-plus-circle text-lg"></i>
+            <span>CREATE ROOM</span>
+          </button>
+        </div>
+
+        <!-- CARD 2: JOIN ROOM -->
+        <div class="glass-card glass-card-hover p-8 rounded-3xl border-rose-500/30 text-left relative overflow-hidden flex flex-col justify-between group">
+          <div class="absolute -right-10 -bottom-10 w-36 h-36 bg-rose-500/10 rounded-full blur-2xl pointer-events-none"></div>
+          <div>
+            <div class="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl mb-5 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-paper-plane-tilt"></i>
+            </div>
+            <h3 class="text-xl font-black text-white mb-2">Join Existing Room</h3>
+            <p class="text-slate-400 text-xs leading-relaxed mb-4">
+              Enter the 4-letter room code provided by your opponent to pair instantly.
+            </p>
+            <div class="mb-4">
+              <input id="joinCodeInput" type="text" maxlength="4" placeholder="CODE (e.g. WOLF)" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-center text-lg font-mono font-black tracking-widest text-rose-400 placeholder:text-slate-600 uppercase focus:outline-none focus:border-rose-400 transition" />
+            </div>
+          </div>
+          <button id="btnJoinRoom" onclick="handleJoinRoom()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-extrabold text-sm shadow-[0_0_30px_rgba(244,63,94,0.35)] hover:shadow-[0_0_40px_rgba(244,63,94,0.6)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <i class="ph-bold ph-sign-in text-lg"></i>
+            <span>ENTER ROOM</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- WAITING ROOM STAGING STATE (Shown when Room is created and waiting for Player 2) -->
+      <div id="roomWaitingCard" class="hidden w-full max-w-xl glass-card rounded-3xl p-8 border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.2)] text-center relative overflow-hidden animate-float">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 text-xs font-mono mb-4">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          ROOM CREATED // AWAITING CHALLENGER
+        </div>
+
+        <h3 class="text-2xl font-black text-white mb-1">Share This Code With Player 2</h3>
+        <p class="text-slate-400 text-xs mb-6">As soon as they open the link, the game board will activate on both screens automatically!</p>
+
+        <!-- Big Room Code Display -->
+        <div class="flex items-center justify-center gap-3 mb-6">
+          <div id="displayRoomCode" class="text-5xl sm:text-6xl font-mono font-black tracking-widest text-cyan-400 px-6 py-3 bg-slate-950/80 border-2 border-cyan-500/60 rounded-2xl shadow-inner select-all">
+            ABCD
+          </div>
+        </div>
+
+        <!-- Shareable Link Box -->
+        <div class="w-full bg-slate-900/90 border border-slate-700/80 rounded-2xl p-3 flex flex-col sm:flex-row items-center gap-2 mb-6 text-left">
+          <div class="flex-1 overflow-hidden px-2">
+            <span class="text-[10px] font-mono text-slate-500 uppercase block">Shareable Join URL:</span>
+            <span id="displayShareUrl" class="text-xs font-mono text-slate-300 truncate block select-all">http://localhost:3000/?room=ABCD</span>
+          </div>
+          <button onclick="copyInviteLink()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-md">
+            <i class="ph-bold ph-copy text-base"></i>
+            <span>COPY LINK</span>
+          </button>
+        </div>
+
+        <!-- Preview Challenger Intro Button -->
+        <div class="mb-4">
+          <button onclick="previewChallengerIntro()" class="text-xs font-mono text-cyan-400 hover:text-cyan-300 transition inline-flex items-center gap-1.5 underline underline-offset-4">
+            <i class="ph-bold ph-eye"></i> Preview the Introduction Page Player 2 will see
+          </button>
+        </div>
+
+        <!-- Animated Waiting Beacon -->
+        <div class="flex items-center justify-center gap-3 text-xs font-mono text-cyan-300">
+          <div class="relative flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+          </div>
+          <span>LISTENING FOR PLAYER 2 CONNECTION...</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- DEDICATED IMMERSIVE INTRODUCTION PAGE (CHALLENGER & GUIDE) -->
+  <!-- ======================================================== -->
+  <section id="introductionScreen" class="min-h-screen pt-24 pb-20 px-4 sm:px-6 flex flex-col items-center justify-start relative z-20 hidden transition-opacity duration-500">
+    <div class="w-full max-w-4xl flex flex-col items-center text-center">
+
+      <!-- TOP CHALLENGER ALERT BANNER (Shown when ?room=CODE invite is detected) -->
+      <div id="introInviteAlertBanner" class="w-full max-w-2xl mb-8 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-rose-950/80 via-slate-900/90 to-purple-950/80 border-2 border-rose-500/60 shadow-[0_0_50px_rgba(244,63,94,0.3)] flex flex-col sm:flex-row items-center justify-between gap-4 animate-float text-left">
+        <div class="flex items-center gap-3.5">
+          <div class="relative flex-shrink-0">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-purple-600 flex items-center justify-center text-white text-xl shadow-lg shadow-rose-500/30">
+              <i class="ph-bold ph-lightning"></i>
+            </div>
+            <span class="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+            </span>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-mono uppercase tracking-widest text-rose-300 font-bold bg-rose-900/60 px-2.5 py-0.5 rounded-full border border-rose-500/30">DIRECT INVITATION RECEIVED</span>
+            </div>
+            <div class="text-sm sm:text-base font-extrabold text-white mt-0.5">
+              <span id="introHostNameBanner" class="text-rose-400 font-black underline decoration-rose-500/40">The Host</span> has challenged you to duel!
+            </div>
+            <div class="text-xs text-slate-300 font-mono mt-0.5">
+              Room Code: <span id="introRoomCodeText" class="text-cyan-400 font-black tracking-widest text-sm select-all">ABCD</span>
+              <span class="mx-1.5 text-slate-600">•</span>
+              <span id="introRoomStatusTag" class="text-emerald-400 font-semibold">Ready to connect</span>
+            </div>
+          </div>
+        </div>
+        <button onclick="scrollToIntroJoinTerminal()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-black text-xs shadow-md hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5 flex-shrink-0">
+          <span>JUMP TO ENTER</span>
+          <i class="ph-bold ph-arrow-down"></i>
+        </button>
+      </div>
+
+      <!-- INTRO HERO TITLE & STORYTELLING HOOK -->
+      <div class="relative mb-6">
+        <!-- Floating Cyber Emblem -->
+        <div class="relative mx-auto mb-6 w-36 h-36 sm:w-44 sm:h-44 group">
+          <div class="absolute -inset-2 bg-gradient-to-r from-cyan-500 via-rose-500 to-purple-600 rounded-3xl blur-xl opacity-75 group-hover:opacity-100 transition duration-700 animate-pulse-glow"></div>
+          <div class="relative w-full h-full rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl bg-slate-950">
+            <img src="protocol_hero.jpg" alt="The Protocol Emblem" class="w-full h-full object-cover transform group-hover:scale-105 transition duration-500" />
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
+          </div>
+        </div>
+
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-xs font-mono mb-4 tracking-widest uppercase shadow-[0_0_25px_rgba(6,182,212,0.25)]">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          REAL-TIME INTERROGATION PROTOCOL // 2-PLAYER ENGINE
+        </div>
+
+        <h1 class="text-4xl sm:text-6xl font-black tracking-tight leading-[1.08] mb-4">
+          Synchronized <br>
+          <span class="text-gradient-cyan">Truth or Dare.</span>
+        </h1>
+
+        <p class="text-slate-300 text-sm sm:text-base max-w-2xl font-light leading-relaxed mx-auto mb-8">
+          Welcome to <span class="text-cyan-400 font-bold">The Protocol</span>. Two players. One shared roulette wheel. Zero room for excuses. 
+          When your opponent spins the wheel, it rotates in real-time across both screens. Prepare for uncensored confessions, chaotic dares, live custom interrogation, and an evasive coward button if you try to back down.
+        </p>
+
+        <!-- Quick Action Pill Buttons -->
+        <div class="flex flex-wrap items-center justify-center gap-3 mb-12">
+          <button onclick="scrollToIntroJoinTerminal()" class="px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-500 to-purple-600 text-white font-extrabold text-xs sm:text-sm shadow-[0_0_30px_rgba(244,63,94,0.4)] hover:scale-105 active:scale-95 transition flex items-center gap-2">
+            <i class="ph-bold ph-sign-in text-base"></i>
+            <span id="btnIntroHeroActionText">ENTER ARENA NOW</span>
+          </button>
+          <button onclick="document.getElementById('introSneakPeekWidget').scrollIntoView({ behavior: 'smooth' })" class="px-6 py-3 rounded-2xl glass-card border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-400 font-bold text-xs sm:text-sm transition flex items-center gap-2">
+            <i class="ph-bold ph-sparkle text-base text-cyan-400"></i>
+            <span>TRY SAMPLE DIRECTIVES</span>
+          </button>
+          <button id="btnIntroBackToLobby" onclick="hideIntroductionScreen()" class="px-4 py-3 rounded-2xl bg-slate-900/80 border border-slate-700 text-slate-400 hover:text-white font-mono text-xs transition flex items-center gap-1.5">
+            <i class="ph-bold ph-arrow-left"></i>
+            <span>BACK TO LOBBY</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- THE 4 PILLARS FEATURE SHOWCASE -->
+      <div class="w-full mb-14 text-left">
+        <div class="text-center mb-8">
+          <span class="text-[11px] font-mono uppercase tracking-widest text-cyan-400 bg-cyan-950/70 border border-cyan-500/30 px-3 py-1 rounded-full">
+            SYSTEM ARCHITECTURE
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black text-white mt-2">How The Protocol Operates</h2>
+          <p class="text-slate-400 text-xs sm:text-sm mt-1 max-w-lg mx-auto">
+            Everything is synchronized with zero external database latency. Here are the 4 core mechanics:
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full">
+          <!-- CARD 1 -->
+          <div class="glass-card glass-card-hover p-6 rounded-3xl border-cyan-500/30 relative overflow-hidden group">
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl mb-4 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-target"></i>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-black text-white">01. Destiny Roulette</h3>
+              <span class="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/30">SYNCHRONIZED</span>
+            </div>
+            <p class="text-slate-300 text-xs leading-relaxed">
+              Whose turn is it to face the fire? Tap spin and the shared wheel whirls in pure synchronization across both devices. Wherever the crimson pointer halts, that gladiator is thrust into the hot seat.
+            </p>
+          </div>
+
+          <!-- CARD 2 -->
+          <div class="glass-card glass-card-hover p-6 rounded-3xl border-rose-500/30 relative overflow-hidden group">
+            <div class="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 text-2xl mb-4 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-fire"></i>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-black text-white">02. Unfiltered Trials</h3>
+              <span class="text-[10px] font-mono bg-rose-950 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">3 TIERS</span>
+            </div>
+            <p class="text-slate-300 text-xs leading-relaxed">
+              Pick <span class="text-cyan-400 font-bold">TRUTH</span> or <span class="text-rose-400 font-bold">DARE</span> across 3 intensity levels: Tier 1 (Warmup & Quirks), Tier 2 (Academic & Overthinker Special), and Tier 3 (Chaotic Social Pranks).
+            </p>
+          </div>
+
+          <!-- CARD 3 -->
+          <div class="glass-card glass-card-hover p-6 rounded-3xl border-purple-500/30 relative overflow-hidden group">
+            <div class="w-12 h-12 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 text-2xl mb-4 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-pencil-simple-line"></i>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-black text-white">03. Live Custom Directives</h3>
+              <span class="text-[10px] font-mono bg-purple-950 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">REAL-TIME</span>
+            </div>
+            <p class="text-slate-300 text-xs leading-relaxed">
+              Interrogators are not chained to the question vault. Switch to <span class="text-purple-300 font-bold">Custom Directive</span> to write a personalized task. As you type, a live radar pulses on your opponent's screen!
+            </p>
+          </div>
+
+          <!-- CARD 4 -->
+          <div class="glass-card glass-card-hover p-6 rounded-3xl border-emerald-500/30 relative overflow-hidden group">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-2xl mb-4 group-hover:scale-110 transition-transform">
+              <i class="ph-duotone ph-hourglass-medium"></i>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-lg font-black text-white">04. The Coward Button</h3>
+              <span class="text-[10px] font-mono bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">ANTI-SKIP</span>
+            </div>
+            <p class="text-slate-300 text-xs leading-relaxed">
+              Every round is backed by a 60-second countdown with synthesized audio tension. Thinking of clicking "Skip"? The coward button actively runs away from your mouse before enforcing a compulsory penalty!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE "VIBE CHECK" SNEAK PEEK WIDGET -->
+      <div id="introSneakPeekWidget" class="w-full max-w-2xl glass-card rounded-3xl p-6 sm:p-8 border border-cyan-500/40 shadow-2xl mb-14 text-center relative overflow-hidden">
+        <div class="absolute -right-20 -bottom-20 w-48 h-48 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 text-[10px] font-mono uppercase tracking-widest mb-3 border border-cyan-500/30">
+          <i class="ph-bold ph-eye"></i> INTERACTIVE SNEAK PEEK // THE VAULT
+        </div>
+        <h3 class="text-xl sm:text-2xl font-black text-white mb-2">Taste What Awaits In The Arena</h3>
+        <p class="text-slate-400 text-xs sm:text-sm max-w-md mx-auto mb-6">
+          Test drive sample questions and dares right now before joining the live room:
+        </p>
+
+        <!-- Category Selector Buttons -->
+        <div class="flex items-center justify-center gap-2 sm:gap-3 mb-6">
+          <button onclick="sampleIntroDirective('TRUTH')" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500 hover:text-slate-950 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition flex items-center gap-1.5 active:scale-95">
+            <span>🔮 Sample Truth</span>
+          </button>
+          <button onclick="sampleIntroDirective('DARE')" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 hover:text-white border border-rose-500/40 text-rose-300 text-xs font-bold transition flex items-center gap-1.5 active:scale-95">
+            <span>🔥 Sample Dare</span>
+          </button>
+          <button onclick="sampleIntroDirective('RANDOM')" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500 hover:text-white border border-purple-500/40 text-purple-300 text-xs font-bold transition flex items-center gap-1.5 active:scale-95">
+            <span>🎲 Random Draw</span>
+          </button>
+        </div>
+
+        <!-- Animated Sample Display Card -->
+        <div class="w-full bg-slate-950/80 rounded-2xl border border-slate-700/80 p-6 min-h-[140px] flex flex-col items-center justify-center relative transition-all duration-300 shadow-inner" id="introSampleCard">
+          <span id="introSampleBadge" class="text-[10px] font-mono uppercase tracking-widest text-cyan-400 bg-cyan-950/60 px-2.5 py-0.5 rounded-full border border-cyan-500/30 mb-2">
+            VAULT SAMPLE
+          </span>
+          <p id="introSampleText" class="text-slate-200 text-sm sm:text-base font-bold leading-relaxed max-w-lg">
+            "What is the pettiest reason you have ever disliked someone on sight?"
+          </p>
+        </div>
+      </div>
+
+      <!-- RULES OF ENGAGEMENT -->
+      <div class="w-full max-w-2xl mb-14 text-left">
+        <h3 class="text-xs font-mono uppercase tracking-widest text-slate-400 text-center mb-4">
+          <i class="ph-bold ph-shield-check text-rose-400 mr-1"></i> THE THREE IRON RULES OF THE PROTOCOL
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+          <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <span class="text-cyan-400 font-bold block mb-1">01. RAW TRUTH</span>
+            <p class="text-slate-400 font-sans text-[11px] leading-relaxed">No diplomatic answers or deflections. Unfiltered confessions only.</p>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <span class="text-rose-400 font-bold block mb-1">02. HONOR THE WHEEL</span>
+            <p class="text-slate-400 font-sans text-[11px] leading-relaxed">Destiny chooses the active player. Both screens reflect the exact same verdict.</p>
+          </div>
+          <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <span class="text-purple-400 font-bold block mb-1">03. COWARD TAX</span>
+            <p class="text-slate-400 font-sans text-[11px] leading-relaxed">If you attempt to forfeit or the 60s expires, automated penalties trigger.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ONBOARDING TERMINAL: CHOOSE HANDLE & ENTER ARENA -->
+      <div id="introJoinTerminal" class="w-full max-w-lg glass-card rounded-3xl p-8 border-2 border-rose-500/70 shadow-[0_0_60px_rgba(244,63,94,0.35)] text-left relative overflow-hidden mb-12">
+        <div class="absolute -right-16 -top-16 w-44 h-44 bg-rose-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-950 text-rose-300 text-xs font-mono mb-3">
+          <i class="ph-bold ph-key"></i> PLAYER AUTHORIZATION TERMINAL
+        </div>
+
+        <h3 class="text-2xl font-black text-white mb-1">
+          <span id="introTerminalHeading">Enter The Arena</span>
+        </h3>
+        <p id="introTerminalNotice" class="text-slate-300 text-xs mb-6">
+          Set your gladiator handle to join the room and face your challenger:
+        </p>
+
+        <!-- Player Name Input Field -->
+        <label class="block text-xs font-mono uppercase text-slate-400 mb-2">
+          <i class="ph-bold ph-user-circle mr-1 text-rose-400"></i> Your Gladiator Handle:
+        </label>
+        <div class="flex items-center gap-2 mb-3">
+          <input id="introPlayerNameInput" type="text" maxlength="16" value="Her" placeholder="Enter your name or handle..." class="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-rose-400 transition" />
+          <button onclick="randomizeIntroName()" class="px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition" title="Randomize handle">
+            <i class="ph-bold ph-dice-three text-lg"></i>
+          </button>
+        </div>
+
+        <!-- Quick Pick Handle Chips -->
+        <div class="flex flex-wrap items-center gap-1.5 mb-6">
+          <span class="text-[10px] font-mono text-slate-500 mr-1">PRESETS:</span>
+          <button onclick="selectIntroHandle('Daredevil')" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950 text-[11px] font-mono text-slate-300 hover:text-rose-300 transition">⚡ Daredevil</button>
+          <button onclick="selectIntroHandle('Queen')" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950 text-[11px] font-mono text-slate-300 hover:text-rose-300 transition">👑 Queen</button>
+          <button onclick="selectIntroHandle('Sleuth')" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950 text-[11px] font-mono text-slate-300 hover:text-rose-300 transition">🕵️ Sleuth</button>
+          <button onclick="selectIntroHandle('Wildcard')" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950 text-[11px] font-mono text-slate-300 hover:text-rose-300 transition">🔥 Wildcard</button>
+          <button onclick="selectIntroHandle('Phantom')" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950 text-[11px] font-mono text-slate-300 hover:text-rose-300 transition">💀 Phantom</button>
+        </div>
+
+        <!-- Room Code Input (Only visible in Guide Mode or if no room in URL) -->
+        <div id="introManualRoomSection" class="hidden mb-6">
+          <label class="block text-xs font-mono uppercase text-slate-400 mb-2">
+            <i class="ph-bold ph-hash mr-1 text-cyan-400"></i> Enter 4-Letter Room Code:
+          </label>
+          <input id="introManualRoomInput" type="text" maxlength="4" placeholder="e.g. WOLF" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-3 text-center text-lg font-mono font-black tracking-widest text-cyan-400 uppercase focus:outline-none focus:border-cyan-400 transition" />
+        </div>
+
+        <!-- MAIN ACTION BUTTON -->
+        <button id="btnIntroMainAction" onclick="handleIntroAcceptInvite()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 via-pink-600 to-purple-600 text-white font-extrabold text-sm sm:text-base shadow-[0_0_35px_rgba(244,63,94,0.45)] hover:scale-[1.02] active:scale-[0.98] transition flex items-center justify-center gap-2">
+          <i class="ph-bold ph-lightning text-xl"></i>
+          <span id="introMainActionLabel">ACCEPT CHALLENGE & ENTER ARENA</span>
+          <i class="ph-bold ph-arrow-right text-lg"></i>
+        </button>
+
+        <!-- Secondary Alternate Link -->
+        <div class="mt-4 flex items-center justify-between text-xs font-mono text-slate-400">
+          <button onclick="switchToHostFromIntro()" class="hover:text-cyan-300 transition underline underline-offset-4">
+            Host your own room instead
+          </button>
+          <button onclick="hideIntroductionScreen()" class="hover:text-slate-200 transition">
+            Main Lobby
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- CELEBRATORY TRANSITION OVERLAY (Fires when Player 2 joins) -->
+  <div id="gameStartModal" class="fixed inset-0 z-50 bg-[#07080d]/90 backdrop-blur-2xl flex flex-col justify-center items-center px-6 hidden opacity-0 transition-opacity duration-500">
+    <div class="w-full max-w-md glass-card p-8 rounded-3xl border-cyan-400 text-center relative shadow-[0_0_80px_rgba(6,182,212,0.4)]">
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-4xl mb-4 shadow-inner">
+        ⚡
+      </div>
+      <div class="inline-block px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 text-xs font-mono tracking-widest uppercase mb-3">
+        BOTH PLAYERS CONNECTED!
+      </div>
+      <h2 class="text-3xl font-black text-white mb-2">Protocol Initialized</h2>
+      <p id="gameStartPlayersText" class="text-slate-300 text-sm mb-6 leading-relaxed">
+        Dipson vs Her have entered the live interrogation matrix.
+      </p>
+      <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+        <div id="gameStartProgress" class="h-full bg-gradient-to-r from-cyan-400 to-rose-500 w-full transition-all duration-1500 ease-out"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN SYNCHRONIZED GAME ARENA -->
+  <main id="gameArena" class="min-h-screen pt-20 pb-16 px-4 sm:px-6 max-w-4xl mx-auto flex flex-col justify-start items-center relative hidden z-20 transition-all duration-500">
+    
+    <!-- Arena Header Bar: Players & Round Status -->
+    <div class="w-full glass-card rounded-2xl p-4 mb-8 border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+      <!-- Players Roster -->
+      <div class="flex items-center gap-3">
+        <!-- Player 1 Badge -->
+        <div id="p1Badge" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-cyan-950/70 border border-cyan-500/40 text-xs font-bold text-cyan-300 shadow-sm">
+          <i class="ph-fill ph-crown text-base text-cyan-400"></i>
+          <span id="p1NameLabel">Player 1</span>
+          <span id="p1SelfTag" class="text-[10px] font-mono text-cyan-400 bg-cyan-900/60 px-1.5 py-0.2 rounded hidden">(YOU)</span>
+          <button id="p1EditNameBtn" onclick="promptEditName('p1')" class="text-cyan-400/60 hover:text-cyan-300 hover:scale-110 ml-0.5 hidden transition" title="Change your name">
+            <i class="ph-bold ph-pencil-simple text-xs"></i>
+          </button>
+        </div>
+
+        <span class="text-slate-600 font-black text-sm">VS</span>
+
+        <!-- Player 2 Badge -->
+        <div id="p2Badge" class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-rose-950/70 border border-rose-500/40 text-xs font-bold text-rose-300 shadow-sm">
+          <i class="ph-fill ph-sparkle text-base text-rose-400"></i>
+          <span id="p2NameLabel">Player 2</span>
+          <span id="p2SelfTag" class="text-[10px] font-mono text-rose-400 bg-rose-900/60 px-1.5 py-0.2 rounded hidden">(YOU)</span>
+          <button id="p2EditNameBtn" onclick="promptEditName('p2')" class="text-rose-400/60 hover:text-rose-300 hover:scale-110 ml-0.5 hidden transition" title="Change your name">
+            <i class="ph-bold ph-pencil-simple text-xs"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Round & Reset -->
+      <div class="flex items-center gap-4 text-xs font-mono">
+        <span class="px-3 py-1 rounded-lg bg-slate-900 border border-slate-800 text-cyan-400 font-bold">
+          ROUND <span id="roundCounter">1</span>
+        </span>
+        <button onclick="requestGameReset()" class="text-slate-400 hover:text-rose-400 transition flex items-center gap-1" title="Reset to Round 1">
+          <i class="ph-bold ph-arrow-counter-clockwise text-base"></i>
+          <span class="hidden sm:inline">RESET</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Turn Directive Banner -->
+    <div id="turnBanner" class="w-full text-center mb-6">
+      <div id="turnBannerPill" class="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono font-bold tracking-wider uppercase text-slate-300 shadow-md">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+        <span id="turnBannerText">STEP 01: SPIN THE ROULETTE WHEEL</span>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- STEP 1: SYNCHRONIZED TWO-PLAYER ROULETTE -->
+    <!-- ========================================== -->
+    <section id="playerRouletteStep" class="w-full text-center flex flex-col items-center">
+      <div class="inline-block px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-mono tracking-widest uppercase mb-3">
+        STEP 01 // DESTINY ROULETTE
+      </div>
+      <h2 class="text-3xl sm:text-4xl font-black mb-2">Whose Turn Is It?</h2>
+      <p class="text-slate-400 text-xs sm:text-sm max-w-md mx-auto mb-8">
+        Hit spin to let destiny select who sits in the hot seat. The wheel rotates and halts in complete synchronization across both screens.
+      </p>
+
+      <!-- Visual Spinning Wheel Container -->
+      <div class="relative w-64 h-64 sm:w-72 sm:h-72 mb-8 flex items-center justify-center wheel-pointer">
+        <!-- Rotatable Disc -->
+        <div id="playerWheelDisc" class="w-full h-full rounded-full border-4 border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.9)] relative overflow-hidden transition-transform duration-[4000ms] cubic-bezier(0.15, 0.9, 0.2, 1)">
+          <!-- Segment A: Player 1 (Top) -->
+          <div class="absolute inset-0 bg-gradient-to-br from-cyan-600 via-cyan-700 to-blue-800 flex flex-col items-center pt-8 [clip-path:polygon(0_0,100%_0,50%_100%)]">
+            <span class="text-2xl mb-1">👑</span>
+            <span id="wheelP1Text" class="font-extrabold text-sm sm:text-base tracking-wider text-white uppercase">PLAYER 1</span>
+          </div>
+          <!-- Segment B: Player 2 (Bottom) -->
+          <div class="absolute inset-0 bg-gradient-to-br from-rose-600 via-rose-700 to-pink-800 flex flex-col items-center pt-8 rotate-180 [clip-path:polygon(0_0,100%_0,50%_100%)]">
+            <span class="text-2xl mb-1">✨</span>
+            <span id="wheelP2Text" class="font-extrabold text-sm sm:text-base tracking-wider text-white uppercase">PLAYER 2</span>
+          </div>
+        </div>
+
+        <!-- Center Hub Pin -->
+        <div class="absolute w-16 h-16 rounded-full bg-slate-900 border-4 border-slate-700 flex items-center justify-center z-20 shadow-xl">
+          <i class="ph-fill ph-target text-slate-300 text-xl"></i>
+        </div>
+      </div>
+
+      <!-- Action Button -->
+      <button id="btnSpinPlayer" onclick="initiateWheelSpin()" class="px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-black text-base shadow-[0_0_30px_rgba(6,182,212,0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
+        <i class="ph-bold ph-spinner text-lg"></i>
+        <span>SPIN THE WHEEL</span>
+      </button>
+
+      <!-- Result Banner -->
+      <div id="playerResultBanner" class="mt-6 hidden animate-bounce">
+        <div class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-bold shadow-lg" id="playerResultBadge">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- STEP 2: SYNCHRONIZED CHOICE (Truth vs Dare) -->
+    <!-- ========================================== -->
+    <section id="choiceStep" class="w-full text-center flex flex-col items-center hidden">
+      <div class="inline-block px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-mono tracking-widest uppercase mb-3">
+        STEP 02 // TRIAL SELECTION
+      </div>
+      <h2 class="text-3xl sm:text-4xl font-black mb-2" id="choiceTitle">Active Player Chosen!</h2>
+      <p id="choiceSubtitle" class="text-slate-400 text-xs sm:text-sm max-w-md mx-auto mb-10">
+        Choose your poison. Confess an unfiltered truth or execute a chaotic dare.
+      </p>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-xl">
+        <!-- TRUTH BUTTON / CARD -->
+        <button id="btnChooseTruth" onclick="handleSelectCategory('TRUTH')" class="glass-card p-8 rounded-3xl border-cyan-500/30 hover:border-cyan-400 hover:shadow-[0_0_35px_rgba(6,182,212,0.3)] hover:-translate-y-1.5 transition-all group flex flex-col items-center">
+          <div class="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-3xl mb-4 group-hover:scale-110 transition-transform">
+            🔮
+          </div>
+          <span class="text-2xl font-black text-cyan-400 tracking-wide">TRUTH</span>
+          <p class="text-xs text-slate-400 mt-2">Zero filter. Raw confessions only.</p>
+        </button>
+
+        <!-- DARE BUTTON / CARD -->
+        <button id="btnChooseDare" onclick="handleSelectCategory('DARE')" class="glass-card p-8 rounded-3xl border-rose-500/30 hover:border-rose-400 hover:shadow-[0_0_35px_rgba(244,63,94,0.3)] hover:-translate-y-1.5 transition-all group flex flex-col items-center">
+          <div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 text-3xl mb-4 group-hover:scale-110 transition-transform">
+            🔥
+          </div>
+          <span class="text-2xl font-black text-rose-400 tracking-wide">DARE</span>
+          <p class="text-xs text-slate-400 mt-2">Physical, vocal, or social chaos.</p>
+        </button>
+      </div>
+
+      <!-- Role-specific waiting notice (if not your turn to choose) -->
+      <div id="choiceWaitingNotice" class="hidden mt-6 text-xs font-mono text-slate-400">
+        <i class="ph-bold ph-hourglass-high mr-1 animate-spin text-cyan-400"></i>
+        <span>Waiting for active player to pick Truth or Dare...</span>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- STEP 3: DIRECTIVE GENERATION & REAL-TIME CUSTOM DIRECTIVES -->
+    <!-- ======================================================== -->
+    <section id="promptGenerationStep" class="w-full text-center flex flex-col items-center hidden">
+      <div class="inline-block px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 text-xs font-mono tracking-widest uppercase mb-3">
+        STEP 03 // FORMULATE DIRECTIVE
+      </div>
+
+      <h2 id="generatorHeader" class="text-3xl sm:text-4xl font-black mb-2">
+        Directive Generation
+      </h2>
+      <p id="generatorSubtext" class="text-slate-400 text-xs sm:text-sm max-w-lg mx-auto mb-8">
+        Interrogator can either spin from the vault or write a customized personal dare/truth that pops up on the target player's screen!
+      </p>
+
+      <!-- Live Typing Indicator on Opponent's Screen -->
+      <div id="typingIndicatorAlert" class="hidden w-full max-w-lg mb-4 px-4 py-2 rounded-xl bg-purple-950/70 border border-purple-500/40 text-purple-300 text-xs font-mono flex items-center justify-center gap-2 animate-pulse">
+        <i class="ph-bold ph-pencil-simple-line"></i>
+        <span id="typingIndicatorText">Opponent is typing a custom challenge for you...</span>
+      </div>
+
+      <!-- Mode Switcher Tabs (Spin vs Custom) -->
+      <div id="directiveTabs" class="flex items-center gap-2 p-1.5 glass-card rounded-2xl mb-8 border-slate-800">
+        <button id="tabModeSpin" onclick="handleSwitchPromptMode('spin')" class="px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition bg-cyan-500 text-slate-950 shadow-md">
+          <i class="ph-bold ph-arrows-clockwise mr-1.5"></i> Vault Spin
+        </button>
+        <button id="tabModeCustom" onclick="handleSwitchPromptMode('custom')" class="px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition text-slate-400 hover:text-white">
+          <i class="ph-bold ph-pencil-simple mr-1.5"></i> Custom Directive
+        </button>
+      </div>
+
+      <!-- Option A: Automated Slot / Card Spinner -->
+      <div id="modeSpinContainer" class="w-full max-w-lg flex flex-col items-center">
+        <!-- Difficulty filter -->
+        <div class="flex items-center gap-2 mb-6">
+          <span class="text-xs font-mono text-slate-500 mr-2">TIER:</span>
+          <button onclick="handleSetIntensity(1)" id="tierBtn1" class="px-3 py-1 rounded-lg text-xs font-mono border border-cyan-500 bg-cyan-950/50 text-cyan-300">L1: Chill</button>
+          <button onclick="handleSetIntensity(2)" id="tierBtn2" class="px-3 py-1 rounded-lg text-xs font-mono border border-slate-700 text-slate-400">L2: Overthinker</button>
+          <button onclick="handleSetIntensity(3)" id="tierBtn3" class="px-3 py-1 rounded-lg text-xs font-mono border border-slate-700 text-slate-400">L3: Chaotic</button>
+        </div>
+
+        <!-- 3D Kinetic Flip Card / Slot Box -->
+        <div class="w-full perspective-1000 mb-6">
+          <div id="slotDisplayCard" class="w-full min-h-[180px] p-6 glass-card rounded-3xl border-slate-700/80 flex flex-col justify-center items-center transition-all duration-300 relative shadow-xl">
+            <span id="promptCategoryBadge" class="text-xs font-mono text-cyan-400 uppercase tracking-widest mb-3">READY TO REVEAL</span>
+            <p id="promptDisplayText" class="text-base sm:text-xl font-bold text-slate-200 leading-snug">
+              Hit the button to trigger synchronized slot roll.
+            </p>
+          </div>
+        </div>
+
+        <button id="btnSpinPrompt" onclick="initiatePromptSlotSpin()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 text-slate-950 font-black text-base shadow-[0_0_30px_rgba(6,182,212,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+          <i class="ph-bold ph-play"></i>
+          <span>SPIN FOR RANDOM PROMPT</span>
+        </button>
+      </div>
+
+      <!-- Option B: Real-Time Custom Directive Writer -->
+      <div id="modeCustomContainer" class="w-full max-w-lg hidden flex flex-col items-center">
+        <div class="w-full glass-card p-6 rounded-3xl border-slate-800 mb-4 text-left">
+          <label class="block text-xs font-mono text-slate-400 mb-2 uppercase">
+            <i class="ph-bold ph-skull mr-1 text-rose-400"></i> Write Your Custom Trial for Active Player:
+          </label>
+          <textarea id="customInputText" oninput="handleCustomInputTyping()" rows="3" placeholder="e.g. You must do 20 pushups while singing the theme song, or confess your deepest secret..." class="w-full bg-slate-900/90 border border-slate-700 rounded-xl p-4 text-slate-100 text-sm focus:outline-none focus:border-rose-500 transition resize-none"></textarea>
+          <p class="text-[11px] font-mono text-slate-500 mt-2">
+            ⚡ This prompt will instantly pop up on your opponent's screen upon submission!
+          </p>
+        </div>
+
+        <button id="btnSubmitCustom" onclick="handleSubmitCustomDirective()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-rose-500 to-purple-600 text-white font-black text-base shadow-[0_0_25px_rgba(244,63,94,0.35)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+          <i class="ph-bold ph-paper-plane-tilt"></i>
+          <span>ISSUE CUSTOM DIRECTIVE</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- STEP 4: SYNCHRONIZED EXECUTION STAGE & TIMER   -->
+    <!-- ============================================== -->
+    <section id="executionStage" class="w-full max-w-xl text-center flex flex-col items-center hidden">
+      <div class="w-full glass-card p-8 rounded-3xl border-cyan-500/40 relative shadow-2xl overflow-hidden mb-6">
+        
+        <!-- Status Header -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+          <span id="activePlayerTag" class="text-xs font-mono text-cyan-400 font-bold uppercase">TARGET: PLAYER</span>
+          <span id="challengeTypeTag" class="text-xs font-mono px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 font-bold">DARE</span>
+        </div>
+
+        <!-- Directive Display -->
+        <div class="min-h-[100px] flex items-center justify-center mb-6">
+          <h3 id="currentActiveTask" class="text-xl sm:text-2xl font-black text-white leading-relaxed">
+            <!-- Populated via script -->
+          </h3>
+        </div>
+
+        <!-- 60-Second Countdown Progress Bar -->
+        <div class="w-full bg-slate-900 rounded-full h-3 mb-3 overflow-hidden border border-slate-800">
+          <div id="executionProgressBar" class="h-full bg-gradient-to-r from-cyan-400 to-rose-500 w-full transition-all duration-1000 ease-linear"></div>
+        </div>
+        <div class="flex justify-between items-center text-xs font-mono text-slate-400 mb-6">
+          <span>TIME REMAINING:</span>
+          <span id="executionTimerText" class="text-rose-400 font-bold text-sm">60s</span>
+        </div>
+
+        <!-- Action Completed Button -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button onclick="handleCompleteChallenge()" class="flex-1 py-3.5 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] active:scale-95 transition flex items-center justify-center gap-2">
+            <i class="ph-bold ph-check-circle text-lg"></i>
+            <span>Task Completed!</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- RUNAWAY COWARD BUTTON (Skip with penalty) -->
+      <div class="w-full relative h-20 flex justify-center items-center">
+        <button id="btnCoward" onmouseover="evadeCowardButton()" onclick="handleTriggerForfeitPenalty()" class="px-5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/60 text-slate-400 hover:text-rose-400 hover:border-rose-500/50 text-xs font-mono transition-all duration-200">
+          I can't do this (Skip)
+        </button>
+      </div>
+
+      <!-- Dispatch Proof via WhatsApp Deep Link -->
+      <div class="mt-4">
+        <button onclick="dispatchEvidenceToWhatsApp()" class="inline-flex items-center gap-2 text-xs font-mono text-cyan-400 hover:underline">
+          <i class="ph-bold ph-share-network"></i> Dispatch Confession / Proof via WhatsApp
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CUSTOM DIRECTIVE IMMEDIATE POPUP MODAL (When custom challenge pops up) -->
+  <div id="customDirectiveModal" class="fixed inset-0 z-50 bg-[#07080d]/90 backdrop-blur-xl flex flex-col justify-center items-center px-6 hidden opacity-0 transition-opacity duration-300">
+    <div class="w-full max-w-lg glass-card p-8 rounded-3xl border-2 border-rose-500 text-center relative shadow-[0_0_70px_rgba(244,63,94,0.4)] animate-shake">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-3xl mb-4">
+        ⚡
+      </div>
+      <div class="inline-block px-3 py-1 rounded-full bg-rose-950 text-rose-300 text-xs font-mono tracking-widest uppercase mb-3">
+        INCOMING CUSTOM CHALLENGE!
+      </div>
+      <h3 id="customModalSender" class="text-lg font-bold text-slate-300 mb-2">Opponent has issued a direct trial:</h3>
+      <div class="p-6 bg-slate-950/80 rounded-2xl border border-rose-500/40 mb-6 text-white text-lg sm:text-xl font-extrabold leading-snug" id="customModalTask">
+        <!-- Content inserted dynamically -->
+      </div>
+      <button onclick="acknowledgeCustomModal()" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-black text-sm shadow-lg hover:scale-105 active:scale-95 transition">
+        I ACCEPT THE CHALLENGE
+      </button>
+    </div>
+  </div>
+
+  <!-- Custom In-App Toast -->
+  <div id="customToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-card px-6 py-3 rounded-2xl border-cyan-500/50 text-xs sm:text-sm font-semibold text-white shadow-2xl flex items-center gap-3 opacity-0 pointer-events-none transition-all duration-300">
+    <i id="toastIcon" class="ph-fill ph-info text-cyan-400 text-lg"></i>
+    <span id="toastMsg">Notification</span>
+  </div>
+
+  <!-- MODAL: CHANGE PLAYER NAME (MID-GAME OR LOBBY) -->
+  <div id="changeNameModal" class="fixed inset-0 z-50 bg-[#07080d]/85 backdrop-blur-md flex flex-col justify-center items-center px-4 hidden opacity-0 transition-opacity duration-300">
+    <div class="w-full max-w-sm glass-card p-6 rounded-3xl border border-cyan-500/40 text-left shadow-2xl">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950 text-cyan-300 text-xs font-mono mb-3">
+        <i class="ph-bold ph-pencil-simple"></i> CUSTOMIZE HANDLE
+      </div>
+      <h3 class="text-lg font-black text-white mb-1">Update Your Name</h3>
+      <p class="text-xs text-slate-400 mb-4">Your updated name will sync across the wheel, banners, and opponent screen.</p>
+      
+      <div class="flex items-center gap-2 mb-4">
+        <input id="changeNameInput" type="text" maxlength="16" placeholder="Enter new name..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-cyan-400" />
+        <button onclick="randomizeModalName()" class="px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-mono transition" title="Randomize name">
+          <i class="ph-bold ph-dice-three text-base"></i>
+        </button>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="closeChangeNameModal()" class="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 transition">Cancel</button>
+        <button onclick="submitChangeName()" class="flex-1 py-3 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs hover:bg-cyan-400 transition">Save Name</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PLAY OVER INTERNET GUIDE -->
+  <div id="internetGuideModal" class="fixed inset-0 z-50 bg-[#07080d]/90 backdrop-blur-xl flex flex-col justify-center items-center px-4 hidden opacity-0 transition-opacity duration-300">
+    <div class="w-full max-w-lg glass-card p-6 sm:p-8 rounded-3xl border border-emerald-500/40 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button onclick="closeInternetModal()" class="absolute top-5 right-5 text-slate-400 hover:text-white text-xl">
+        <i class="ph-bold ph-x"></i>
+      </button>
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950 text-emerald-300 text-xs font-mono mb-4">
+        <i class="ph-bold ph-globe"></i> ONLINE MULTIPLAYER GUIDE
+      </div>
+      <h3 class="text-2xl font-black text-white mb-2">How to Play Over the Internet</h3>
+      <p class="text-slate-300 text-xs leading-relaxed mb-6">
+        Want to play with someone in another room, house, or country? Here are the 3 easiest ways:
+      </p>
+
+      <div class="space-y-4 text-xs font-mono">
+        <!-- Option 1: Instant Tunnel -->
+        <div class="p-4 rounded-2xl bg-slate-950/70 border border-emerald-500/30">
+          <div class="text-emerald-400 font-bold text-sm mb-1 flex items-center gap-2">
+            <span>⚡ Method 1: Instant Free Tunnel (Zero Setup)</span>
+          </div>
+          <p class="text-slate-400 font-sans text-xs mb-2">Open a terminal in your project directory and run:</p>
+          <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-emerald-300 select-all flex justify-between items-center">
+            <code>npx localtunnel --port 3000</code>
+          </div>
+          <p class="text-slate-500 font-sans text-[11px] mt-2">
+            It gives you a public link (e.g., <span class="text-emerald-400">https://wild-dare.loca.lt</span>). Anyone anywhere in the world on a phone or laptop can open that link!
+          </p>
+        </div>
+
+        <!-- Option 2: Wi-Fi LAN -->
+        <div class="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div class="text-cyan-400 font-bold text-sm mb-1 flex items-center gap-2">
+            <span>📶 Method 2: Same Wi-Fi (Home / School / Room)</span>
+          </div>
+          <p class="text-slate-400 font-sans text-xs mb-2">If both players are on the same Wi-Fi, the second player can open your local IP:</p>
+          <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-cyan-300 select-all">
+            <code>http://192.168.1.65:3000</code>
+          </div>
+          <p class="text-slate-500 font-sans text-[11px] mt-2">
+            Just type this IP address into the browser of their phone or computer!
+          </p>
+        </div>
+
+        <!-- Option 3: Free Cloud Deployment -->
+        <div class="p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div class="text-purple-400 font-bold text-sm mb-1 flex items-center gap-2">
+            <span>☁️ Method 3: 24/7 Free Cloud Hosting (Render / Railway)</span>
+          </div>
+          <p class="text-slate-400 font-sans text-xs">
+            Push this repository to GitHub and connect it to <strong>Render.com</strong> as a free Web Service (<code class="text-purple-300">node server.js</code>). You'll get a permanent 24/7 web address (e.g., <span class="text-purple-300">https://truth-dare.onrender.com</span>)!
+          </p>
+        </div>
+      </div>
+
+      <button onclick="closeInternetModal()" class="w-full mt-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition">
+        Got it! Close
+      </button>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- GAME LOGIC & REALTIME CLIENT SYNCHRONIZATION ENGINE      -->
+  <!-- ======================================================== -->
+  <script>
+    // --- SYNTHESIZED WEB AUDIO API ENGINE ---
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function toggleAudio() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('soundIcon');
+      const label = document.getElementById('soundLabel');
+      if (soundEnabled) {
+        icon.className = "ph-bold ph-speaker-high text-cyan-400";
+        label.innerText = "FX: ON";
+        playSynthBeep(600, 0.05);
+      } else {
+        icon.className = "ph-bold ph-speaker-slash text-slate-500";
+        label.innerText = "FX: OFF";
+      }
+    }
+
+    function playSynthBeep(freq = 440, duration = 0.08, type = 'sine') {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function playFanfare() {
+      if (!soundEnabled) return;
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach((freq, idx) => {
+        setTimeout(() => playSynthBeep(freq, 0.18, 'triangle'), idx * 90);
+      });
+    }
+
+    function playTensionTick() {
+      playSynthBeep(880, 0.03, 'square');
+    }
+
+    function playBuzzer() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(80, ctx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch(e) {}
+    }
+
+    // --- CURATED TRUTH & DARE QUESTION VAULT ---
+    const GAME_DATA = {
+      truths: {
+        1: [ // Level 1: Warmup
+          "What is the most embarrassingly useless skill you possess and secretly feel proud of?",
+          "If someone went through your search history from the past 48 hours, what would be the hardest search to explain?",
+          "What is the pettiest reason you have ever disliked someone on sight?",
+          "Have you ever faked being asleep or having a dead phone battery just to avoid replying to a single person?",
+          "What is one fashion trend or aesthetic you secretly tried pulling off that was an absolute disaster?",
+          "What is the weirdest food combination you eat when nobody is watching?"
+        ],
+        2: [ // Level 2: Academic & Overthinker Special
+          "Honestly admit: what is your record for staring at the exact same textbook paragraph without absorbing a single syllable?",
+          "How many times this week have you calculated the minimum marks needed to pass/scholarship instead of actually studying?",
+          "What is the most elaborate excuse you’ve given yourself to justify a 'quick 10-minute break' that turned into 3 hours?",
+          "If your highlighted textbook pages were audited, what percentage was purely for aesthetics rather than learning?",
+          "Have you ever attended an online lecture with the camera off while doing something completely unhinged?",
+          "What is your go-to coping delusion when an exam or mock test is less than 72 hours away?",
+          "Be honest: how much of your daily caffeine/tea consumption is genuine fatigue vs. pure aesthetic habit?"
+        ],
+        3: [ // Level 3: Chaotic & Social
+          "Who is the last person you stalked on Instagram or social media, and how many profiles deep did you go?",
+          "What is a secret opinion you hold about your friend group that you would never say out loud?",
+          "If you were forced to switch lives with someone you know for one week, who would it be and why?",
+          "What is the biggest lie you told with a straight face that everyone actually believed?",
+          "Have you ever sent a text screenshot to the exact person the screenshot was about in pure panic?",
+          "What is one unsent text in your drafts that would cause immediate chaos if delivered right now?"
+        ]
+      },
+      dares: {
+        1: [ // Level 1: Physical / Fun
+          "Balance an open book or notebook on your head for 45 seconds straight without touching it.",
+          "Drink another half glass of water in one continuous sip without taking a breath.",
+          "Open your front camera right now and take the most unhinged, unflattering double-chin selfie; save as wallpaper for 10 mins.",
+          "Speak in an exaggerated, dramatic Shakespearean accent for the next two rounds.",
+          "Do 15 jumping jacks while loudly reciting whatever formula or definition you find hardest to memorize."
+        ],
+        2: [ // Level 2: Voice Note & Social
+          "Send a 10-second voice note to your opponent whispering only: 'The syllabus knows what you did.' Provide zero context.",
+          "Screenshot your current screen time dashboard and send it immediately with zero defensive explanations.",
+          "Send a voice note singing the chorus of the cheesiest song currently stuck in your head at full volume.",
+          "Text your best friend: 'I made a huge decision today. I am moving to the mountains to herd yaks.' Wait 2 mins to clarify.",
+          "Record a 5-second video explaining why momo is medically necessary for human survival."
+        ],
+        3: [ // Level 3: Troll Vault / High Stakes
+          "Let your opponent pick your profile status or Instagram bio for the next 60 minutes.",
+          "Put on the silliest outfit combination currently in your closet (e.g. winter jacket + shorts) and send a 3-second runway clip.",
+          "Read the last note in your phone's Notes app out loud on a voice memo, word for word.",
+          "Call someone on your recent calls list and immediately ask: 'Quick, what year is it?!' then hang up.",
+          "Open your front camera right now and hold an intense, unblinking staring contest with the screen for 30 seconds straight."
+        ]
+      },
+      penalties: [
+        "Coward tax applied! Send an audio message admitting: 'I hereby formally concede defeat to the Truth or Dare engine.'",
+        "Skip denied! Send a photo of your study desk / current room with zero cleaning beforehand.",
+        "Emergency forfeit clause: Send a 20-second dramatic critique of your opponent's gaming luck."
+      ]
+    };
+
+    // --- APPLICATION STATE ---
+    let app = {
+      roomCode: null,
+      myRole: null, // 'p1' (Host) or 'p2' (Guest)
+      myName: 'Dipson',
+      opponentName: 'Player 2',
+      isConnected: false,
+      ws: null,
+      broadcastChannel: null,
+      
+      // Synchronized Game State
+      gameState: {
+        round: 1,
+        activePlayer: null,      // e.g. "Dipson" or "Her"
+        activePlayerRole: null,  // 'p1' or 'p2'
+        category: null,          // 'TRUTH' or 'DARE'
+        promptMode: 'spin',      // 'spin' or 'custom'
+        intensity: 1,
+        currentTask: "",
+        timerRemaining: 60,
+        wheelSpins: 0,
+        lastSpinTargetDeg: 0,
+        cowardAttempts: 0
+      },
+      timerInterval: null,
+      typingTimeout: null
+    };
+
+    // --- TOAST HELPER ---
+    function showToast(message, icon = "ph-fill ph-info", color = "text-cyan-400") {
+      const toast = document.getElementById('customToast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+      
+      toastMsg.innerText = message;
+      toastIcon.className = `${icon} ${color} text-lg`;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+        toast.classList.remove('opacity-100');
+      }, 3500);
+    }
+
+    // --- INITIALIZE NETWORKING & WEBSOCKET ENGINE ---
+    function initNetwork() {
+      const host = window.location.host || 'localhost:3000';
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${host}`;
+
+      updateNetworkBadge('CONNECTING...', 'bg-amber-400');
+
+      try {
+        app.ws = new WebSocket(wsUrl);
+
+        app.ws.onopen = () => {
+          app.isConnected = true;
+          updateNetworkBadge('ONLINE (WS)', 'bg-emerald-400');
+          console.log('[WS] Connected to server.');
+
+          // Check if room code was passed via URL (?room=ABCD)
+          checkUrlRoomParameter();
+        };
+
+        app.ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleIncomingNetworkMessage(data);
+          } catch(e) {
+            console.error('[WS Parse Error]', e);
+          }
+        };
+
+        app.ws.onclose = () => {
+          app.isConnected = false;
+          updateNetworkBadge('OFFLINE (P2P)', 'bg-purple-400');
+          console.warn('[WS] Closed. Will attempt reconnect in 3s.');
+          setTimeout(initNetwork, 3000);
+        };
+
+        app.ws.onerror = (err) => {
+          console.warn('[WS Error] Falling back to BroadcastChannel if needed', err);
+          updateNetworkBadge('P2P LOCAL', 'bg-cyan-400');
+        };
+      } catch (err) {
+        console.warn('[WS Init Failed]', err);
+        updateNetworkBadge('P2P LOCAL', 'bg-cyan-400');
+      }
+    }
+
+    function updateNetworkBadge(text, dotColorClass) {
+      const netText = document.getElementById('networkText');
+      const netDot = document.getElementById('networkDot');
+      if (netText) netText.innerText = text;
+      if (netDot) netDot.className = `w-1.5 h-1.5 rounded-full ${dotColorClass} animate-pulse`;
+    }
+
+    // BroadcastChannel fallback for instant multi-tab sync if server is unreachable
+    function initBroadcastChannel(roomCode) {
+      if (app.broadcastChannel) {
+        app.broadcastChannel.close();
+      }
+      try {
+        app.broadcastChannel = new BroadcastChannel(`tod_room_${roomCode}`);
+        app.broadcastChannel.onmessage = (event) => {
+          handleIncomingNetworkMessage(event.data);
+        };
+      } catch (e) {
+        console.warn('BroadcastChannel not supported');
+      }
+    }
+
+    function sendNetworkMessage(type, payload = {}) {
+      const msg = {
+        type,
+        roomCode: app.roomCode,
+        payload
+      };
+
+      // 1. Send via WebSocket if open
+      if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+        app.ws.send(JSON.stringify(msg));
+      }
+
+      // 2. Mirror to BroadcastChannel
+      if (app.broadcastChannel) {
+        app.broadcastChannel.postMessage(msg);
+      }
+    }
+
+    // --- INTRODUCTION SCREEN ENGINE ---
+    let introMode = 'invite'; // 'invite' or 'guide'
+
+    function showIntroductionScreen(mode = 'invite', codeOverride = null) {
+      introMode = mode;
+      playSynthBeep(640, 0.06);
+
+      const introScreen = document.getElementById('introductionScreen');
+      const lobbyScreen = document.getElementById('lobbyScreen');
+      const alertBanner = document.getElementById('introInviteAlertBanner');
+      const manualSection = document.getElementById('introManualRoomSection');
+      const heroActionText = document.getElementById('btnIntroHeroActionText');
+      const mainActionLabel = document.getElementById('introMainActionLabel');
+      const terminalNotice = document.getElementById('introTerminalNotice');
+      const terminalHeading = document.getElementById('introTerminalHeading');
+      const roomCodeText = document.getElementById('introRoomCodeText');
+      const nameInput = document.getElementById('introPlayerNameInput');
+
+      if (!introScreen) return;
+
+      lobbyScreen.classList.add('hidden');
+      introScreen.classList.remove('hidden');
+
+      const params = new URLSearchParams(window.location.search);
+      const code = (codeOverride || params.get('room') || app.roomCode || '').trim().toUpperCase();
+
+      if (mode === 'invite' && code.length === 4) {
+        alertBanner.classList.remove('hidden');
+        alertBanner.classList.add('flex');
+        manualSection.classList.add('hidden');
+        heroActionText.innerText = `ENTER ROOM ${code}`;
+        mainActionLabel.innerText = `ACCEPT CHALLENGE & ENTER ARENA (${code})`;
+        terminalHeading.innerText = `Enter The Arena`;
+        terminalNotice.innerHTML = `Host is waiting in the arena. Choose your handle to accept the duel in Room <strong class="text-rose-400 font-mono">${code}</strong>:`;
+        roomCodeText.innerText = code;
+
+        // Query server to get Host's actual name
+        if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+          app.ws.send(JSON.stringify({
+            type: 'QUERY_ROOM',
+            roomCode: code
+          }));
+        }
+      } else {
+        // Guide / Exploration mode
+        alertBanner.classList.add('hidden');
+        alertBanner.classList.remove('flex');
+        manualSection.classList.remove('hidden');
+        heroActionText.innerText = "START PLAYING NOW";
+        mainActionLabel.innerText = "JOIN ARENA WITH CODE";
+        terminalHeading.innerText = "Initialize Your Protocol Session";
+        terminalNotice.innerText = "Choose your gladiator handle and enter a 4-letter room code, or host your own match below:";
+        if (code && code.length === 4) {
+          const manualInput = document.getElementById('introManualRoomInput');
+          if (manualInput) manualInput.value = code;
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function hideIntroductionScreen() {
+      const introScreen = document.getElementById('introductionScreen');
+      const lobbyScreen = document.getElementById('lobbyScreen');
+      if (introScreen) introScreen.classList.add('hidden');
+      if (lobbyScreen) lobbyScreen.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function updateIntroHostInfo(hostName, roomCode, isFull = false, notFound = false) {
+      const banner = document.getElementById('introHostNameBanner');
+      const statusTag = document.getElementById('introRoomStatusTag');
+      const terminalNotice = document.getElementById('introTerminalNotice');
+      const btnAction = document.getElementById('btnIntroMainAction');
+
+      if (banner && hostName) {
+        banner.innerText = hostName;
+        banner.classList.add('animate-pulse');
+      }
+
+      if (notFound) {
+        if (statusTag) {
+          statusTag.innerText = "Room not found / Expired";
+          statusTag.className = "text-rose-400 font-semibold";
+        }
+        if (terminalNotice) {
+          terminalNotice.innerHTML = `<span class="text-rose-400 font-bold">Room "${roomCode}" was not found or has expired.</span> You can host a new room below!`;
+        }
+        return;
+      }
+
+      if (isFull) {
+        if (statusTag) {
+          statusTag.innerText = "Room is Full (2/2)";
+          statusTag.className = "text-amber-400 font-semibold";
+        }
+        if (terminalNotice) {
+          terminalNotice.innerHTML = `<span class="text-amber-400 font-bold">Notice: Room ${roomCode} already has 2 active players.</span> You can host your own room below:`;
+        }
+      } else {
+        if (statusTag) {
+          statusTag.innerText = "Ready to connect";
+          statusTag.className = "text-emerald-400 font-semibold";
+        }
+        if (terminalNotice && hostName) {
+          terminalNotice.innerHTML = `<strong class="text-rose-400">${hostName}</strong> is waiting in the arena. Choose your handle to accept the duel in Room <strong class="text-rose-400 font-mono">${roomCode}</strong>:`;
+        }
+      }
+    }
+
+    function scrollToIntroJoinTerminal() {
+      playSynthBeep(580, 0.04);
+      const terminal = document.getElementById('introJoinTerminal');
+      if (terminal) {
+        terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = document.getElementById('introPlayerNameInput');
+        if (input) setTimeout(() => input.focus(), 400);
+      }
+    }
+
+    function randomizeIntroName() {
+      const names = ['Her', 'Aria', 'Zen', 'Kira', 'Nova', 'Echo', 'Viper', 'Maya', 'Luna', 'Daredevil', 'Queen', 'Sleuth', 'Wildcard', 'Phantom', 'Rebel'];
+      const input = document.getElementById('introPlayerNameInput');
+      const current = input.value;
+      const filtered = names.filter(n => n !== current);
+      const chosen = filtered[Math.floor(Math.random() * filtered.length)];
+      input.value = chosen;
+      playSynthBeep(620, 0.05);
+    }
+
+    function selectIntroHandle(name) {
+      const input = document.getElementById('introPlayerNameInput');
+      if (input) {
+        input.value = name;
+        playSynthBeep(650, 0.05);
+      }
+    }
+
+    function sampleIntroDirective(type) {
+      let pool = [];
+      let catBadge = '';
+
+      if (type === 'TRUTH') {
+        const tier = Math.floor(Math.random() * 3) + 1;
+        pool = GAME_DATA.truths[tier];
+        catBadge = `🔮 TIER ${tier} TRUTH`;
+      } else if (type === 'DARE') {
+        const tier = Math.floor(Math.random() * 3) + 1;
+        pool = GAME_DATA.dares[tier];
+        catBadge = `🔥 TIER ${tier} DARE`;
+      } else {
+        const isTruth = Math.random() < 0.5;
+        const tier = Math.floor(Math.random() * 3) + 1;
+        pool = isTruth ? GAME_DATA.truths[tier] : GAME_DATA.dares[tier];
+        catBadge = isTruth ? `🔮 TIER ${tier} TRUTH` : `🔥 TIER ${tier} DARE`;
+      }
+
+      const randomDirective = pool[Math.floor(Math.random() * pool.length)];
+      const card = document.getElementById('introSampleCard');
+      const badge = document.getElementById('introSampleBadge');
+      const textElem = document.getElementById('introSampleText');
+
+      badge.innerText = catBadge;
+      textElem.innerText = `"${randomDirective}"`;
+
+      card.classList.add('border-cyan-400');
+      card.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        card.classList.remove('border-cyan-400');
+        card.style.transform = 'scale(1)';
+      }, 250);
+
+      playSynthBeep(520 + Math.random() * 200, 0.06);
+    }
+
+    function switchToHostFromIntro() {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('room');
+        window.history.replaceState({}, '', url.pathname);
+      } catch (e) {}
+
+      hideIntroductionScreen();
+      showToast("Switched to Host mode. Create a room below!", "ph-fill ph-plus-circle", "text-cyan-400");
+    }
+
+    function previewChallengerIntro() {
+      if (!app.roomCode) return;
+      showIntroductionScreen('invite', app.roomCode);
+      showToast(`Previewing introduction for Room ${app.roomCode}`, "ph-fill ph-eye", "text-cyan-400");
+    }
+
+    function handleIntroAcceptInvite() {
+      const params = new URLSearchParams(window.location.search);
+      let code = (params.get('room') || app.roomCode || '').trim().toUpperCase();
+
+      if (!code || code.length !== 4) {
+        // Check manual input
+        const manualInput = document.getElementById('introManualRoomInput');
+        code = (manualInput ? manualInput.value : '').trim().toUpperCase();
+      }
+
+      if (!code || code.length !== 4) {
+        showToast("Please enter a valid 4-letter room code!", "ph-fill ph-warning", "text-rose-400");
+        playBuzzer();
+        const manualInput = document.getElementById('introManualRoomInput');
+        if (manualInput) {
+          manualInput.parentElement.classList.remove('hidden');
+          manualInput.focus();
+        }
+        return;
+      }
+
+      const nameInput = document.getElementById('introPlayerNameInput');
+      const chosenName = (nameInput.value || '').trim() || 'Player 2';
+
+      app.myName = chosenName;
+      playFanfare();
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.5 }
+      });
+
+      if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+        app.ws.send(JSON.stringify({
+          type: 'JOIN_ROOM',
+          roomCode: code,
+          payload: { playerName: chosenName }
+        }));
+      } else {
+        setupRoomAsGuest(code, chosenName, 'Host');
+        sendNetworkMessage('JOIN_ROOM_P2P', { playerName: chosenName });
+      }
+    }
+
+    // --- CHECK URL ROOM PARAMETER (e.g. ?room=ABCD) ---
+    function checkUrlRoomParameter() {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get('room');
+      if (roomParam && roomParam.trim().length === 4) {
+        const code = roomParam.trim().toUpperCase();
+        
+        // Show dedicated Introduction Page in 'invite' mode!
+        showIntroductionScreen('invite', code);
+        
+        // Also keep fallback invitation card populated
+        const inviteCodeText = document.getElementById('inviteRoomCodeText');
+        if (inviteCodeText) inviteCodeText.innerText = code;
+      }
+    }
+
+    function randomizeName() {
+      const names = ['Dipson', 'Her', 'Aria', 'Zen', 'Kira', 'Nova', 'Echo', 'Viper', 'Leo', 'Maya'];
+      const current = document.getElementById('playerNameInput').value;
+      const filtered = names.filter(n => n !== current);
+      const chosen = filtered[Math.floor(Math.random() * filtered.length)];
+      document.getElementById('playerNameInput').value = chosen;
+      app.myName = chosen;
+      playSynthBeep(580, 0.05);
+    }
+
+    function randomizeInviteName() {
+      const names = ['Her', 'Aria', 'Zen', 'Kira', 'Nova', 'Echo', 'Viper', 'Maya', 'Luna'];
+      const input = document.getElementById('invitePlayerNameInput');
+      const current = input.value;
+      const filtered = names.filter(n => n !== current);
+      const chosen = filtered[Math.floor(Math.random() * filtered.length)];
+      input.value = chosen;
+      playSynthBeep(580, 0.05);
+    }
+
+    function randomizeModalName() {
+      const names = ['Dipson', 'Her', 'Aria', 'Zen', 'Kira', 'Nova', 'Echo', 'Viper', 'Phoenix', 'Sage'];
+      const input = document.getElementById('changeNameInput');
+      const current = input.value;
+      const filtered = names.filter(n => n !== current);
+      const chosen = filtered[Math.floor(Math.random() * filtered.length)];
+      input.value = chosen;
+      playSynthBeep(580, 0.05);
+    }
+
+    // Player 2 clicks "ENTER THE ARENA" from invitation card
+    function handleAcceptInvite() {
+      const params = new URLSearchParams(window.location.search);
+      const code = (params.get('room') || '').trim().toUpperCase();
+      const nameInput = document.getElementById('invitePlayerNameInput');
+      const chosenName = (nameInput.value || '').trim() || 'Player 2';
+
+      app.myName = chosenName;
+      playSynthBeep(640, 0.08);
+
+      if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+        app.ws.send(JSON.stringify({
+          type: 'JOIN_ROOM',
+          roomCode: code,
+          payload: { playerName: chosenName }
+        }));
+      } else {
+        setupRoomAsGuest(code, chosenName, 'Host');
+        sendNetworkMessage('JOIN_ROOM_P2P', { playerName: chosenName });
+      }
+    }
+
+    // Live Mid-Game Name Customization
+    let nameEditTargetRole = null;
+    function promptEditName(role) {
+      if (role !== app.myRole) return;
+      nameEditTargetRole = role;
+      const modal = document.getElementById('changeNameModal');
+      const input = document.getElementById('changeNameInput');
+      input.value = app.myName;
+      modal.classList.remove('hidden');
+      setTimeout(() => modal.classList.remove('opacity-0'), 20);
+      input.focus();
+    }
+
+    function closeChangeNameModal() {
+      const modal = document.getElementById('changeNameModal');
+      modal.classList.add('opacity-0');
+      setTimeout(() => modal.classList.add('hidden'), 300);
+    }
+
+    function submitChangeName() {
+      const input = document.getElementById('changeNameInput');
+      const newName = (input.value || '').trim();
+      if (!newName) {
+        showToast("Please enter a valid name!", "ph-fill ph-warning", "text-rose-400");
+        return;
+      }
+      const oldName = app.myName;
+      app.myName = newName;
+
+      // Update locally
+      if (app.myRole === 'p1') {
+        document.getElementById('p1NameLabel').innerText = newName;
+        document.getElementById('wheelP1Text').innerText = newName;
+      } else {
+        document.getElementById('p2NameLabel').innerText = newName;
+        document.getElementById('wheelP2Text').innerText = newName;
+      }
+      updateTurnBanner();
+
+      // Broadcast to other player
+      sendNetworkMessage('UPDATE_PLAYER_NAME', {
+        role: app.myRole,
+        newName: newName,
+        oldName: oldName
+      });
+
+      closeChangeNameModal();
+      showToast(`Name updated to "${newName}"!`, "ph-fill ph-check-circle", "text-emerald-400");
+    }
+
+    // Online / Internet Guide Modal helpers
+    function openInternetModal() {
+      playSynthBeep(650, 0.05);
+      const modal = document.getElementById('internetGuideModal');
+      modal.classList.remove('hidden');
+      setTimeout(() => modal.classList.remove('opacity-0'), 20);
+    }
+
+    function closeInternetModal() {
+      const modal = document.getElementById('internetGuideModal');
+      modal.classList.add('opacity-0');
+      setTimeout(() => modal.classList.add('hidden'), 300);
+    }
+
+    // --- LOBBY ACTIONS: CREATE & JOIN ROOM ---
+    function handleCreateRoom() {
+      app.myName = document.getElementById('playerNameInput').value.trim() || 'Dipson';
+      playSynthBeep(620, 0.08);
+
+      if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+        app.ws.send(JSON.stringify({
+          type: 'CREATE_ROOM',
+          payload: { playerName: app.myName }
+        }));
+      } else {
+        // Local P2P fallback room generation
+        const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        let code = '';
+        for (let i = 0; i < 4; i++) code += letters.charAt(Math.floor(Math.random() * letters.length));
+        setupRoomAsHost(code, app.myName);
+      }
+    }
+
+    function setupRoomAsHost(code, playerName) {
+      app.roomCode = code;
+      app.myRole = 'p1';
+      app.myName = playerName;
+
+      initBroadcastChannel(code);
+
+      document.getElementById('roomActionsGrid').classList.add('hidden');
+      const waitingCard = document.getElementById('roomWaitingCard');
+      waitingCard.classList.remove('hidden');
+
+      document.getElementById('displayRoomCode').innerText = code;
+      
+      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${code}`;
+      document.getElementById('displayShareUrl').innerText = shareUrl;
+
+      // Update Top HUD
+      document.getElementById('roomStatusBar').classList.remove('hidden');
+      document.getElementById('currentRoomCodeLabel').innerText = code;
+      document.getElementById('playerRoleBadge').innerText = 'HOST (P1)';
+      document.getElementById('btnHeaderCopyLink').classList.remove('hidden');
+      document.getElementById('btnHeaderCopyLink').classList.add('flex');
+
+      showToast(`Room ${code} created! Share the link.`, "ph-fill ph-check-circle", "text-cyan-400");
+    }
+
+    function handleJoinRoom() {
+      const codeInput = document.getElementById('joinCodeInput');
+      const code = (codeInput.value || '').trim().toUpperCase();
+      app.myName = document.getElementById('playerNameInput').value.trim() || 'Player 2';
+
+      if (code.length !== 4) {
+        showToast("Enter a valid 4-letter room code!", "ph-fill ph-warning", "text-rose-400");
+        playBuzzer();
+        codeInput.focus();
+        return;
+      }
+
+      playSynthBeep(640, 0.08);
+
+      if (app.ws && app.ws.readyState === WebSocket.OPEN) {
+        app.ws.send(JSON.stringify({
+          type: 'JOIN_ROOM',
+          roomCode: code,
+          payload: { playerName: app.myName }
+        }));
+      } else {
+        // Fallback local P2P
+        setupRoomAsGuest(code, app.myName, 'Dipson');
+        sendNetworkMessage('JOIN_ROOM_P2P', { playerName: app.myName });
+      }
+    }
+
+    function setupRoomAsGuest(code, playerName, opponentName = 'Host') {
+      app.roomCode = code;
+      app.myRole = 'p2';
+      app.myName = playerName;
+      app.opponentName = opponentName;
+
+      initBroadcastChannel(code);
+
+      // Update Top HUD
+      document.getElementById('roomStatusBar').classList.remove('hidden');
+      document.getElementById('currentRoomCodeLabel').innerText = code;
+      document.getElementById('playerRoleBadge').innerText = 'GUEST (P2)';
+      document.getElementById('playerRoleBadge').className = 'text-rose-400 font-bold';
+      document.getElementById('btnHeaderCopyLink').classList.remove('hidden');
+      document.getElementById('btnHeaderCopyLink').classList.add('flex');
+
+      showToast(`Joined Room ${code}! Connecting to host...`, "ph-fill ph-check-circle", "text-rose-400");
+    }
+
+    function copyInviteLink() {
+      if (!app.roomCode) return;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${app.roomCode}`;
+      
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast("Invite link copied to clipboard!", "ph-fill ph-copy", "text-emerald-400");
+        playSynthBeep(800, 0.05);
+      }).catch(() => {
+        // Fallback prompt
+        window.prompt("Copy room link:", shareUrl);
+      });
+    }
+
+    // --- TRANSITION FROM LOBBY TO ACTIVE GAME BOARD ---
+    function transitionToActiveGameBoard(p1Name, p2Name) {
+      playFanfare();
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.5 }
+      });
+
+      // Update player names in UI
+      const p1Label = document.getElementById('p1NameLabel');
+      const p2Label = document.getElementById('p2NameLabel');
+      const wheelP1 = document.getElementById('wheelP1Text');
+      const wheelP2 = document.getElementById('wheelP2Text');
+
+      p1Label.innerText = p1Name || 'Player 1';
+      p2Label.innerText = p2Name || 'Player 2';
+      wheelP1.innerText = p1Name || 'Player 1';
+      wheelP2.innerText = p2Name || 'Player 2';
+
+      if (app.myRole === 'p1') {
+        document.getElementById('p1SelfTag').classList.remove('hidden');
+        document.getElementById('p1EditNameBtn').classList.remove('hidden');
+      } else {
+        document.getElementById('p2SelfTag').classList.remove('hidden');
+        document.getElementById('p2EditNameBtn').classList.remove('hidden');
+      }
+
+      // Show celebratory connection modal briefly
+      const startModal = document.getElementById('gameStartModal');
+      const startText = document.getElementById('gameStartPlayersText');
+      startText.innerText = `${p1Name} & ${p2Name} are now synchronized in room ${app.roomCode}.`;
+      startModal.classList.remove('hidden');
+      setTimeout(() => startModal.classList.remove('opacity-0'), 20);
+
+      setTimeout(() => {
+        startModal.classList.add('opacity-0');
+        setTimeout(() => {
+          startModal.classList.add('hidden');
+
+          // Hide Lobby, Show Arena
+          document.getElementById('lobbyScreen').classList.add('hidden');
+          document.getElementById('gameArena').classList.remove('hidden');
+          document.getElementById('reactionBar').classList.remove('hidden');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+
+          updateTurnBanner();
+        }, 400);
+      }, 1500);
+    }
+
+    function updateTurnBanner() {
+      const bannerText = document.getElementById('turnBannerText');
+      const pill = document.getElementById('turnBannerPill');
+      
+      if (!app.gameState.activePlayerRole) {
+        bannerText.innerText = `STEP 01: SPIN THE ROULETTE WHEEL`;
+        pill.className = "inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-900 border border-slate-700 text-xs font-mono font-bold tracking-wider uppercase text-cyan-300 shadow-md";
+        return;
+      }
+
+      const isMyTurn = (app.myRole === app.gameState.activePlayerRole);
+      if (isMyTurn) {
+        bannerText.innerText = `YOU ARE IN THE HOT SEAT!`;
+        pill.className = "inline-flex items-center gap-2 px-5 py-2 rounded-full bg-rose-950/80 border border-rose-500/50 text-xs font-mono font-bold tracking-wider uppercase text-rose-300 shadow-md animate-pulse";
+      } else {
+        bannerText.innerText = `${app.gameState.activePlayer.toUpperCase()} IS IN THE HOT SEAT! (YOU INTERROGATE)`;
+        pill.className = "inline-flex items-center gap-2 px-5 py-2 rounded-full bg-cyan-950/80 border border-cyan-500/50 text-xs font-mono font-bold tracking-wider uppercase text-cyan-300 shadow-md";
+      }
+    }
+
+    // --- STEP 1: SYNCHRONIZED ROULETTE WHEEL SPIN ---
+    function initiateWheelSpin() {
+      const btn = document.getElementById('btnSpinPlayer');
+      if (btn.disabled) return;
+
+      playSynthBeep(520, 0.08);
+
+      app.gameState.wheelSpins++;
+      // Determine chosen player index: 0 = Player 1 (Top / 0 deg), 1 = Player 2 (Bottom / 180 deg)
+      const chosenIndex = Math.random() < 0.5 ? 0 : 1;
+      const chosenRole = chosenIndex === 0 ? 'p1' : 'p2';
+      const p1Name = document.getElementById('p1NameLabel').innerText;
+      const p2Name = document.getElementById('p2NameLabel').innerText;
+      const chosenPlayer = chosenIndex === 0 ? p1Name : p2Name;
+
+      // Calculate synchronized landing degrees
+      // 4 full rotations (1440 deg) * spin count + alignment offset
+      const targetDeg = (app.gameState.wheelSpins * 1440) + (chosenIndex === 0 ? 0 : 180);
+
+      // Broadcast spin to both screens
+      sendNetworkMessage('SPIN_WHEEL', {
+        targetDeg,
+        chosenPlayer,
+        chosenRole,
+        spinCount: app.gameState.wheelSpins
+      });
+
+      // Execute locally
+      executeWheelSpinAnimation(targetDeg, chosenPlayer, chosenRole);
+    }
+
+    function executeWheelSpinAnimation(targetDeg, chosenPlayer, chosenRole) {
+      const disc = document.getElementById('playerWheelDisc');
+      const btn = document.getElementById('btnSpinPlayer');
+      const resultBanner = document.getElementById('playerResultBanner');
+      const resultBadge = document.getElementById('playerResultBadge');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-50', 'pointer-events-none');
+      resultBanner.classList.add('hidden');
+
+      app.gameState.activePlayer = chosenPlayer;
+      app.gameState.activePlayerRole = chosenRole;
+
+      // Sound ticks during spin
+      let ticks = 0;
+      const tickTimer = setInterval(() => {
+        playSynthBeep(380 + (ticks * 22), 0.03, 'triangle');
+        ticks++;
+        if (ticks > 18) clearInterval(tickTimer);
+      }, 180);
+
+      // Apply rotation
+      disc.style.transform = `rotate(${targetDeg}deg)`;
+
+      // When spin animation concludes
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'pointer-events-none');
+        playFanfare();
+        confetti({
+          particleCount: 50,
+          spread: 60,
+          origin: { y: 0.6 }
+        });
+
+        // Show result banner
+        resultBanner.classList.remove('hidden');
+        if (chosenRole === 'p1') {
+          resultBadge.className = "inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40";
+          resultBadge.innerHTML = `<i class="ph-fill ph-crown"></i> Active Player: ${chosenPlayer.toUpperCase()}'S TURN!`;
+        } else {
+          resultBadge.className = "inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-base font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40";
+          resultBadge.innerHTML = `<i class="ph-fill ph-sparkle"></i> Active Player: ${chosenPlayer.toUpperCase()}'S TURN!`;
+        }
+
+        updateTurnBanner();
+
+        // Transition to Step 2
+        setTimeout(() => {
+          advanceToChoiceStep();
+        }, 1300);
+
+      }, 4000);
+    }
+
+    function advanceToChoiceStep() {
+      document.getElementById('playerRouletteStep').classList.add('hidden');
+      const choiceStep = document.getElementById('choiceStep');
+      const title = document.getElementById('choiceTitle');
+      const subtitle = document.getElementById('choiceSubtitle');
+      const waitingNotice = document.getElementById('choiceWaitingNotice');
+      const btnTruth = document.getElementById('btnChooseTruth');
+      const btnDare = document.getElementById('btnChooseDare');
+
+      const isMyTurn = (app.myRole === app.gameState.activePlayerRole);
+
+      title.innerText = `${app.gameState.activePlayer}: Choose Your Fate`;
+      
+      if (isMyTurn) {
+        subtitle.innerText = "You are in the hot seat! Pick Truth or Dare.";
+        waitingNotice.classList.add('hidden');
+        btnTruth.classList.remove('opacity-40', 'pointer-events-none');
+        btnDare.classList.remove('opacity-40', 'pointer-events-none');
+      } else {
+        subtitle.innerText = `Waiting for ${app.gameState.activePlayer} to select Truth or Dare...`;
+        waitingNotice.classList.remove('hidden');
+        btnTruth.classList.add('opacity-40', 'pointer-events-none');
+        btnDare.classList.add('opacity-40', 'pointer-events-none');
+      }
+
+      choiceStep.classList.remove('hidden');
+      updateTurnBanner();
+    }
+
+    // --- STEP 2: CATEGORY SELECTION (TRUTH OR DARE) ---
+    function handleSelectCategory(cat) {
+      if (app.myRole !== app.gameState.activePlayerRole) {
+        showToast("Only the selected player in the hot seat can choose!", "ph-fill ph-warning", "text-amber-400");
+        return;
+      }
+
+      sendNetworkMessage('SELECT_CATEGORY', {
+        category: cat,
+        byRole: app.myRole
+      });
+
+      executeCategorySelection(cat);
+    }
+
+    function executeCategorySelection(cat) {
+      app.gameState.category = cat;
+      playSynthBeep(680, 0.1);
+
+      document.getElementById('choiceStep').classList.add('hidden');
+      const promptStep = document.getElementById('promptGenerationStep');
+      const header = document.getElementById('generatorHeader');
+      const subtext = document.getElementById('generatorSubtext');
+
+      const isMyTurn = (app.myRole === app.gameState.activePlayerRole);
+      const opponentName = (app.myRole === 'p1') ? document.getElementById('p2NameLabel').innerText : document.getElementById('p1NameLabel').innerText;
+
+      header.innerText = `${app.gameState.activePlayer}: ${cat} Trial`;
+      
+      if (isMyTurn) {
+        subtext.innerText = `Waiting for interrogator (${opponentName}) to issue your ${cat.toLowerCase()} challenge!`;
+        // Disable controls on active player's screen so interrogator dictates directive
+        document.getElementById('directiveTabs').classList.add('opacity-50', 'pointer-events-none');
+        document.getElementById('btnSpinPrompt').classList.add('opacity-50', 'pointer-events-none');
+        document.getElementById('btnSubmitCustom').classList.add('opacity-50', 'pointer-events-none');
+      } else {
+        subtext.innerText = `You are the interrogator! Spin from the vault or write a custom ${cat.toLowerCase()} for ${app.gameState.activePlayer}.`;
+        document.getElementById('directiveTabs').classList.remove('opacity-50', 'pointer-events-none');
+        document.getElementById('btnSpinPrompt').classList.remove('opacity-50', 'pointer-events-none');
+        document.getElementById('btnSubmitCustom').classList.remove('opacity-50', 'pointer-events-none');
+      }
+
+      document.getElementById('promptCategoryBadge').innerText = `${cat} WHEEL READY`;
+      document.getElementById('promptDisplayText').innerText = `Spin for a randomized ${cat.toLowerCase()}!`;
+
+      promptStep.classList.remove('hidden');
+      updateTurnBanner();
+    }
+
+    // --- STEP 3: PROMPT GENERATION & CUSTOM DIRECTIVES ---
+    function handleSwitchPromptMode(mode) {
+      sendNetworkMessage('SWITCH_PROMPT_MODE', { mode });
+      executeSwitchPromptMode(mode);
+    }
+
+    function executeSwitchPromptMode(mode) {
+      app.gameState.promptMode = mode;
+      const spinBtn = document.getElementById('tabModeSpin');
+      const customBtn = document.getElementById('tabModeCustom');
+      const spinBox = document.getElementById('modeSpinContainer');
+      const customBox = document.getElementById('modeCustomContainer');
+
+      if (mode === 'spin') {
+        spinBtn.className = "px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition bg-cyan-500 text-slate-950 shadow-md";
+        customBtn.className = "px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition text-slate-400 hover:text-white";
+        spinBox.classList.remove('hidden');
+        customBox.classList.add('hidden');
+      } else {
+        customBtn.className = "px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition bg-rose-500 text-white shadow-md";
+        spinBtn.className = "px-5 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase transition text-slate-400 hover:text-white";
+        customBox.classList.remove('hidden');
+        spinBox.classList.add('hidden');
+      }
+      playSynthBeep(520, 0.04);
+    }
+
+    function handleSetIntensity(tier) {
+      sendNetworkMessage('SET_INTENSITY', { tier });
+      executeSetIntensity(tier);
+    }
+
+    function executeSetIntensity(tier) {
+      app.gameState.intensity = tier;
+      [1, 2, 3].forEach(t => {
+        const btn = document.getElementById(`tierBtn${t}`);
+        if (t === tier) {
+          btn.className = "px-3 py-1 rounded-lg text-xs font-mono border border-cyan-500 bg-cyan-950/50 text-cyan-300";
+        } else {
+          btn.className = "px-3 py-1 rounded-lg text-xs font-mono border border-slate-700 text-slate-400";
+        }
+      });
+      playSynthBeep(450 + (tier * 60), 0.04);
+    }
+
+    // Kinetic Slot Spinning
+    function initiatePromptSlotSpin() {
+      const bank = app.gameState.category === 'TRUTH' ? GAME_DATA.truths[app.gameState.intensity] : GAME_DATA.dares[app.gameState.intensity];
+      const finalItem = bank[Math.floor(Math.random() * bank.length)];
+
+      executeSlotRoll(finalItem, bank);
+    }
+
+    function executeSlotRoll(finalItem, bank) {
+      const card = document.getElementById('slotDisplayCard');
+      const textElem = document.getElementById('promptDisplayText');
+      const spinBtn = document.getElementById('btnSpinPrompt');
+
+      spinBtn.disabled = true;
+      spinBtn.classList.add('opacity-50');
+
+      let rolls = 0;
+      const rollInterval = setInterval(() => {
+        playSynthBeep(500 + Math.random() * 300, 0.03, 'sine');
+        const randomItem = bank[Math.floor(Math.random() * bank.length)];
+        textElem.innerText = randomItem;
+        card.classList.toggle('border-cyan-500');
+
+        // Broadcast tick to opponent
+        sendNetworkMessage('ROLLING_PROMPTS', { text: randomItem });
+        rolls++;
+
+        if (rolls > 12) {
+          clearInterval(rollInterval);
+          spinBtn.disabled = false;
+          spinBtn.classList.remove('opacity-50');
+
+          app.gameState.currentTask = finalItem;
+          textElem.innerText = finalItem;
+          playFanfare();
+          card.classList.add('border-cyan-400', 'shadow-[0_0_30px_rgba(6,182,212,0.3)]');
+
+          // Broadcast reveal
+          sendNetworkMessage('DIRECTIVE_REVEALED', {
+            task: finalItem,
+            isCustom: false,
+            senderName: app.myName
+          });
+
+          setTimeout(() => {
+            beginExecutionStage(finalItem, false);
+          }, 1000);
+        }
+      }, 100);
+    }
+
+    // Live Custom Directive Typing Indicator
+    function handleCustomInputTyping() {
+      if (app.typingTimeout) clearTimeout(app.typingTimeout);
+
+      sendNetworkMessage('CUSTOM_TYPING', {
+        isTyping: true,
+        senderRole: app.myRole
+      });
+
+      app.typingTimeout = setTimeout(() => {
+        sendNetworkMessage('CUSTOM_TYPING', {
+          isTyping: false,
+          senderRole: app.myRole
+        });
+      }, 1500);
+    }
+
+    // Submit Custom Directive
+    function handleSubmitCustomDirective() {
+      const input = document.getElementById('customInputText');
+      const val = input.value.trim();
+      if (!val) {
+        showToast("Please enter a directive before submitting!", "ph-fill ph-warning", "text-rose-400");
+        playBuzzer();
+        return;
+      }
+
+      app.gameState.currentTask = val;
+      playFanfare();
+
+      // Broadcast custom directive immediately to opponent
+      sendNetworkMessage('DIRECTIVE_REVEALED', {
+        task: val,
+        isCustom: true,
+        senderName: app.myName
+      });
+
+      beginExecutionStage(val, true);
+    }
+
+    // --- STEP 4: EXECUTION & EVASIVE RUNAWAY BUTTON ---
+    function beginExecutionStage(taskText, isCustom = false) {
+      document.getElementById('promptGenerationStep').classList.add('hidden');
+      const execStage = document.getElementById('executionStage');
+      execStage.classList.remove('hidden');
+
+      document.getElementById('activePlayerTag').innerText = `TARGET: ${app.gameState.activePlayer}`;
+      document.getElementById('challengeTypeTag').innerText = isCustom ? `CUSTOM ${app.gameState.category}` : app.gameState.category;
+      document.getElementById('currentActiveTask').innerText = taskText;
+
+      startExecutionTimer();
+      updateTurnBanner();
+    }
+
+    function showImmediateCustomPopup(taskText, senderName) {
+      const modal = document.getElementById('customDirectiveModal');
+      const modalTask = document.getElementById('customModalTask');
+      const modalSender = document.getElementById('customModalSender');
+
+      modalSender.innerText = `${senderName} has issued a custom trial for you:`;
+      modalTask.innerText = taskText;
+
+      playBuzzer();
+      playFanfare();
+
+      modal.classList.remove('hidden');
+      setTimeout(() => modal.classList.remove('opacity-0'), 20);
+    }
+
+    function acknowledgeCustomModal() {
+      const modal = document.getElementById('customDirectiveModal');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 300);
+    }
+
+    function startExecutionTimer() {
+      if (app.timerInterval) clearInterval(app.timerInterval);
+      app.gameState.timerRemaining = 60;
+      const timerText = document.getElementById('executionTimerText');
+      const pBar = document.getElementById('executionProgressBar');
+
+      app.timerInterval = setInterval(() => {
+        app.gameState.timerRemaining--;
+        timerText.innerText = `${app.gameState.timerRemaining}s`;
+        pBar.style.width = `${(app.gameState.timerRemaining / 60) * 100}%`;
+
+        if (app.gameState.timerRemaining <= 10) {
+          playTensionTick();
+        }
+
+        if (app.gameState.timerRemaining <= 0) {
+          clearInterval(app.timerInterval);
+          playBuzzer();
+          handleTriggerTimeoutPenalty();
+        }
+      }, 1000);
+    }
+
+    // Evasive Coward Button
+    function evadeCowardButton() {
+      const btn = document.getElementById('btnCoward');
+      app.gameState.cowardAttempts++;
+      playSynthBeep(700, 0.04);
+
+      if (app.gameState.cowardAttempts < 4) {
+        const randX = (Math.random() - 0.5) * 180;
+        const randY = (Math.random() - 0.5) * 70;
+        btn.style.transform = `translate(${randX}px, ${randY}px)`;
+        
+        const labels = [
+          "Are you seriously backing out?",
+          "Button relocated. Try harder.",
+          "Nice attempt, but nope!",
+          "Final warning: coward tax incoming."
+        ];
+        btn.innerText = labels[app.gameState.cowardAttempts - 1] || "Skip";
+      } else {
+        btn.style.transform = `translate(0px, 0px)`;
+        btn.innerText = "Forfeit (Accept Coward Penalty)";
+        btn.classList.add('border-rose-500', 'text-rose-400');
+      }
+    }
+
+    function handleTriggerForfeitPenalty() {
+      clearInterval(app.timerInterval);
+      playBuzzer();
+      const penalty = GAME_DATA.penalties[Math.floor(Math.random() * GAME_DATA.penalties.length)];
+      const taskText = `[FORFEIT PENALTY] ${penalty}`;
+
+      sendNetworkMessage('TRIGGER_PENALTY', {
+        reason: 'forfeit',
+        penaltyTask: taskText
+      });
+
+      executePenalty(taskText, "Coward tax applied! Penalty dare enforced.");
+    }
+
+    function handleTriggerTimeoutPenalty() {
+      const penalty = GAME_DATA.penalties[Math.floor(Math.random() * GAME_DATA.penalties.length)];
+      const taskText = `[TIME EXPIRED PENALTY] ${penalty}`;
+
+      sendNetworkMessage('TRIGGER_PENALTY', {
+        reason: 'timeout',
+        penaltyTask: taskText
+      });
+
+      executePenalty(taskText, "Time ran out! Automated penalty dare issued.");
+    }
+
+    function executePenalty(taskText, notice) {
+      app.gameState.currentTask = taskText;
+      document.getElementById('currentActiveTask').innerText = taskText;
+      document.getElementById('challengeTypeTag').innerText = "PENALTY DARE";
+      showToast(notice, "ph-fill ph-skull", "text-rose-400");
+    }
+
+    function handleCompleteChallenge() {
+      if (app.timerInterval) clearInterval(app.timerInterval);
+      playFanfare();
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.5 }
+      });
+      showToast("Challenge officially completed!", "ph-fill ph-seal-check", "text-emerald-400");
+
+      sendNetworkMessage('COMPLETE_CHALLENGE', { completedBy: app.myName });
+
+      setTimeout(() => {
+        handleNextRound();
+      }, 1500);
+    }
+
+    function handleNextRound() {
+      sendNetworkMessage('NEXT_ROUND', {});
+      executeNextRound(app.gameState.round + 1);
+    }
+
+    function executeNextRound(newRound) {
+      app.gameState.round = newRound;
+      document.getElementById('roundCounter').innerText = app.gameState.round;
+      app.gameState.cowardAttempts = 0;
+      app.gameState.activePlayer = null;
+      app.gameState.activePlayerRole = null;
+      app.gameState.category = null;
+      
+      const cowardBtn = document.getElementById('btnCoward');
+      cowardBtn.style.transform = "translate(0px, 0px)";
+      cowardBtn.innerText = "I can't do this (Skip)";
+      cowardBtn.classList.remove('border-rose-500', 'text-rose-400');
+
+      document.getElementById('customInputText').value = "";
+      document.getElementById('executionStage').classList.add('hidden');
+      document.getElementById('playerRouletteStep').classList.remove('hidden');
+      
+      updateTurnBanner();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function requestGameReset() {
+      sendNetworkMessage('RESET_GAME', {});
+      executeGameReset();
+    }
+
+    function executeGameReset() {
+      if (app.timerInterval) clearInterval(app.timerInterval);
+      app.gameState.round = 1;
+      document.getElementById('roundCounter').innerText = "1";
+      document.getElementById('executionStage').classList.add('hidden');
+      document.getElementById('promptGenerationStep').classList.add('hidden');
+      document.getElementById('choiceStep').classList.add('hidden');
+      document.getElementById('playerRouletteStep').classList.remove('hidden');
+      app.gameState.activePlayer = null;
+      app.gameState.activePlayerRole = null;
+      updateTurnBanner();
+      showToast("Session reset to Round 1.", "ph-fill ph-arrow-counter-clockwise", "text-cyan-400");
+    }
+
+    function dispatchEvidenceToWhatsApp() {
+      const text = encodeURIComponent(`Truth or Dare Proof Dispatch!\nRoom: ${app.roomCode}\nTarget: ${app.gameState.activePlayer}\nTrial: "${app.gameState.currentTask}"\nStatus: Officially logged into the protocol.`);
+      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+    }
+
+    // Quick Live Reaction Emojis
+    function sendReaction(emoji) {
+      playSynthBeep(720, 0.05);
+      triggerFloatingReaction(emoji);
+      sendNetworkMessage('EMOJI_REACTION', {
+        emoji,
+        senderRole: app.myRole
+      });
+    }
+
+    function triggerFloatingReaction(emoji) {
+      const elem = document.createElement('div');
+      elem.className = 'floating-reaction';
+      elem.innerText = emoji;
+      elem.style.left = `${Math.floor(Math.random() * 60) + 20}%`;
+      elem.style.bottom = '80px';
+      document.body.appendChild(elem);
+      setTimeout(() => elem.remove(), 2300);
+    }
+
+    // --- INCOMING NETWORK MESSAGE DISPATCHER ---
+    function handleIncomingNetworkMessage(data) {
+      const { type, payload, roomCode, role, playerName, opponentName, players, error } = data;
+
+      switch(type) {
+        case 'ROOM_CREATED':
+          setupRoomAsHost(roomCode, playerName);
+          break;
+
+        case 'ROOM_JOINED':
+          setupRoomAsGuest(roomCode, playerName, opponentName);
+          break;
+
+        case 'JOIN_ERROR':
+          showToast(error, "ph-fill ph-warning", "text-rose-400");
+          playBuzzer();
+          break;
+
+        case 'GAME_STARTED':
+          // Transition both screens to the active game board!
+          const p1 = players.find(p => p.role === 'p1');
+          const p2 = players.find(p => p.role === 'p2');
+          transitionToActiveGameBoard(p1 ? p1.name : 'Dipson', p2 ? p2.name : 'Her');
+          break;
+
+        case 'JOIN_ROOM_P2P':
+          if (app.myRole === 'p1') {
+            transitionToActiveGameBoard(app.myName, payload.playerName);
+          }
+          break;
+
+        case 'WHEEL_SPUN':
+          executeWheelSpinAnimation(payload.targetDeg, payload.chosenPlayer, payload.chosenRole);
+          break;
+
+        case 'CATEGORY_SELECTED':
+          executeCategorySelection(payload.category);
+          break;
+
+        case 'PROMPT_MODE_SWITCHED':
+          executeSwitchPromptMode(payload.mode);
+          break;
+
+        case 'INTENSITY_SET':
+          executeSetIntensity(payload.tier);
+          break;
+
+        case 'PROMPT_SLOT_ROLLING':
+          document.getElementById('promptDisplayText').innerText = payload.text;
+          break;
+
+        case 'CUSTOM_TYPING_INDICATOR': {
+          const indicator = document.getElementById('typingIndicatorAlert');
+          if (payload.isTyping) {
+            indicator.classList.remove('hidden');
+          } else {
+            indicator.classList.add('hidden');
+          }
+          break;
+        }
+
+        case 'DIRECTIVE_REVEALED':
+          app.gameState.currentTask = payload.task;
+          if (payload.isCustom) {
+            // Trigger dramatic popup on recipient screen
+            if (app.myRole === app.gameState.activePlayerRole) {
+              showImmediateCustomPopup(payload.task, payload.senderName);
+            }
+          }
+          beginExecutionStage(payload.task, payload.isCustom);
+          break;
+
+        case 'PENALTY_ENFORCED':
+          executePenalty(payload.penaltyTask, "Penalty enforced across session!");
+          break;
+
+        case 'CHALLENGE_COMPLETED':
+          playFanfare();
+          confetti({ particleCount: 60, spread: 60 });
+          showToast(`${payload.completedBy} conquered the challenge!`, "ph-fill ph-seal-check", "text-emerald-400");
+          break;
+
+        case 'NEXT_ROUND_STARTED':
+          executeNextRound(payload.round);
+          break;
+
+        case 'GAME_RESET':
+          executeGameReset();
+          break;
+
+        case 'EMOJI_REACTION':
+          triggerFloatingReaction(payload.emoji);
+          break;
+
+        case 'PLAYER_DISCONNECTED':
+          showToast(`${payload.playerName} disconnected from the room.`, "ph-fill ph-plugs", "text-amber-400");
+          break;
+
+        case 'ROOM_INFO': {
+          const hostNotice = document.getElementById('inviteHostNotice');
+          if (hostNotice && data.hostName) {
+            hostNotice.innerText = `Host (${data.hostName}) is waiting in the arena. Choose your name to enter:`;
+          }
+          updateIntroHostInfo(data.hostName, data.roomCode, data.isFull, false);
+          break;
+        }
+
+        case 'ROOM_NOT_FOUND': {
+          updateIntroHostInfo(null, data.roomCode, false, true);
+          showToast(`Room "${data.roomCode}" was not found or has expired.`, "ph-fill ph-warning", "text-amber-400");
+          break;
+        }
+
+        case 'PLAYER_NAME_UPDATED': {
+          const { role, newName, oldName } = payload;
+          if (role === 'p1') {
+            document.getElementById('p1NameLabel').innerText = newName;
+            document.getElementById('wheelP1Text').innerText = newName;
+          } else {
+            document.getElementById('p2NameLabel').innerText = newName;
+            document.getElementById('wheelP2Text').innerText = newName;
+          }
+          if (role !== app.myRole) {
+            app.opponentName = newName;
+            showToast(`${oldName} is now known as "${newName}".`, "ph-fill ph-pencil-simple", "text-purple-400");
+          }
+          updateTurnBanner();
+          break;
+        }
+      }
+    }
+
+    // Start network engine on DOM load
+    window.addEventListener('DOMContentLoaded', () => {
+      initNetwork();
+      checkUrlRoomParameter();
+    });
+  </script>
+</body>
+</html>
